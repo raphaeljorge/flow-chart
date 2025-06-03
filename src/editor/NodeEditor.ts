@@ -71,8 +71,7 @@ export class NodeEditor {
     this.interactionManager = new InteractionManager(this.canvasEngine, this.nodeManager, this.stickyNoteManager, this.selectionManager);
     this.renderService = new RenderService(this.canvasEngine, this.nodeManager, this.stickyNoteManager, this.selectionManager, this.interactionManager);
     this.shortcutManager = new ShortcutManager(this.container);
-    if (this.options.showPalette && this.paletteContainer) this.nodePalette = new NodePalette(this.paletteContainer, { nodeDefinitions: this.options.nodeDefinitions || [] });
-    if (this.configPanelContainer) this.configPanel = new ConfigPanel(this.configPanelContainer, this.selectionManager, this.nodeManager, this.stickyNoteManager);
+    if (this.options.showPalette && this.paletteContainer) this.nodePalette = new NodePalette(this.paletteContainer, { nodeDefinitions: this.options.nodeDefinitions || [] }, this.iconService);    if (this.configPanelContainer) this.configPanel = new ConfigPanel(this.configPanelContainer, this.selectionManager, this.nodeManager, this.stickyNoteManager);
     if (this.options.showToolbar && this.toolbarContainer) { this.toolbar = new Toolbar(this.toolbarContainer); this.initializeToolbarButtons(); }
     if (this.overlayContainer) {
         this.contextMenu = new ContextMenu(this.overlayContainer);
