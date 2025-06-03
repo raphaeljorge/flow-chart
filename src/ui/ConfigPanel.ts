@@ -3,7 +3,8 @@ import { EventEmitter } from 'eventemitter3';
 import { 
     Node, StickyNote, Connection, NodeConfig, 
     ConfigParameter, ConfigTab, 
-    ConfigurableItem, ConfigurableItemType 
+    ConfigurableItem, ConfigurableItemType, NodePort,
+    NodeDataVariableParseEvent
 } from '../core/Types';
 import { NodeManager } from '../core/NodeManager';
 import { StickyNoteManager } from '../core/StickyNoteManager';
@@ -18,6 +19,7 @@ export class ConfigPanel {
   private currentItem: ConfigurableItem | null = null;
   private currentItemType: ConfigurableItemType | null = null;
   private currentTabId: string | null = null;
+  private currentRawNodeData: any = null; // Para rastrear mudanças no data do nó para parsing de variáveis
 
   constructor(
     containerElement: HTMLElement,
@@ -74,10 +76,18 @@ export class ConfigPanel {
   public show(item: ConfigurableItem, itemType: ConfigurableItemType): void {
     this.currentItem = item;
     this.currentItemType = itemType;
+    // Guarda uma cópia profunda do data do nó para comparação de variáveis
+    if (itemType === 'node') {
+        this.currentRawNodeData = JSON.parse(JSON.stringify((item as Node).data || {}));
+    } else {
+        this.currentRawNodeData = null;
+    }
+
     const config = this.getItemConfig(item, itemType);
     if (config?.tabs && config.tabs.length > 0) {
         this.currentTabId = config.tabs.find(t => t.id === this.currentTabId) ? this.currentTabId : config.tabs[0].id;
     } else if (config?.parameters.length > 0) {
+        // Se não houver abas explícitas, usa 'default' ou a primeira aba definida por um parâmetro
         this.currentTabId = config.parameters[0]?.tabId || 'default'; 
     } else {
         this.currentTabId = null;
@@ -92,11 +102,95 @@ export class ConfigPanel {
     this.panelElement?.classList.remove('visible');
     const prevItem = this.currentItem;
     this.currentItem = null; this.currentItemType = null; this.currentTabId = null;
+    this.currentRawNodeData = null;
     this.events.emit('panelHidden', prevItem);
   }
 
   private getItemConfig(item: ConfigurableItem, itemType: ConfigurableItemType): NodeConfig | undefined {
-    if (itemType === 'node') return (item as Node).config;
+    if (itemType === 'node') {
+        const node = item as Node;
+        // Adiciona uma aba "Ports" para gerenciar portas dinâmicas
+        const nodeConfig = JSON.parse(JSON.stringify(node.config || { id: 'node-config', itemType: 'node', parameters: [] })); // Clona para não modificar o original
+        
+        // Garante que a aba 'Ports' exista, adicionando-a se não estiver presente
+        if (!nodeConfig.tabs) nodeConfig.tabs = [];
+        if (!nodeConfig.tabs.some(tab => tab.id === 'ports')) {
+            nodeConfig.tabs.push({ id: 'ports', label: 'Ports', icon: 'ph-plugs' });
+        }
+
+        // Adiciona um separador e um botão para adicionar variáveis de entrada
+        nodeConfig.parameters.push({
+            id: 'add-input-variable-button',
+            tabId: 'ports',
+            type: 'button', // Um tipo de parâmetro "virtual" para renderizar botões
+            label: 'Add Input Variable',
+            description: 'Manually add a new input variable.',
+        } as ConfigParameter);
+
+        // Adiciona parâmetros para cada porta de entrada dinâmica
+        node.dynamicInputs.forEach(port => {
+            nodeConfig.parameters.push({
+                id: `dynamic-input-${port.id}-name`,
+                tabId: 'ports',
+                type: 'text',
+                label: `Input: ${port.variableName}`,
+                defaultValue: port.variableName,
+                description: `Variable name: ${port.variableName}`,
+                // Adicione aqui uma validação para o nome da variável se desejar
+            } as ConfigParameter);
+            nodeConfig.parameters.push({
+                id: `dynamic-input-${port.id}-hidden`,
+                tabId: 'ports',
+                type: 'boolean',
+                label: `Hide ${port.variableName} (Input)`,
+                defaultValue: port.isHidden,
+            } as ConfigParameter);
+            nodeConfig.parameters.push({
+                id: `dynamic-input-${port.id}-delete`,
+                tabId: 'ports',
+                type: 'button',
+                label: `Delete ${port.variableName}`,
+                description: `Delete this input variable.`,
+            } as ConfigParameter);
+        });
+
+        // Adiciona um separador e um botão para adicionar portas de saída
+        nodeConfig.parameters.push({
+            id: 'add-output-port-button',
+            tabId: 'ports',
+            type: 'button',
+            label: 'Add Output Port',
+            description: 'Manually add a new output port.',
+        } as ConfigParameter);
+
+        // Adiciona parâmetros para cada porta de saída dinâmica
+        node.dynamicOutputs.forEach(port => {
+            nodeConfig.parameters.push({
+                id: `dynamic-output-${port.id}-name`,
+                tabId: 'ports',
+                type: 'text',
+                label: `Output Name: ${port.name}`,
+                defaultValue: port.name,
+            } as ConfigParameter);
+             nodeConfig.parameters.push({
+                id: `dynamic-output-${port.id}-value`,
+                tabId: 'ports',
+                type: 'code', // Pode ser 'code' para expressões ou 'text' para valores literais
+                label: `Output Value for ${port.name}`,
+                defaultValue: port.outputValue || '',
+                description: `Define the value returned by this output port.`,
+            } as ConfigParameter);
+            nodeConfig.parameters.push({
+                id: `dynamic-output-${port.id}-delete`,
+                tabId: 'ports',
+                type: 'button',
+                label: `Delete ${port.name}`,
+                description: `Delete this output port.`,
+            } as ConfigParameter);
+        });
+
+        return nodeConfig;
+    }
     if (itemType === 'stickyNote') {
       const note = item as StickyNote;
       return {
@@ -179,28 +273,74 @@ export class ConfigPanel {
     const contentContainer = this.panelElement?.querySelector('.node-config-content');
     if (!contentContainer || !this.currentItem) { if(contentContainer) contentContainer.innerHTML = ''; return; }
     if (!config || config.parameters.length === 0) { contentContainer.innerHTML = '<p class="config-no-params">No configuration available.</p>'; return; }
-    const parametersToRender = config.parameters.filter(param => (!config.tabs || config.tabs.length === 0) || !param.tabId || param.tabId === this.currentTabId || this.currentTabId === 'default');
+    
+    // Filtra parâmetros para a aba atual
+    const parametersToRender = config.parameters.filter(param => 
+        (!config.tabs || config.tabs.length === 0) || // Se não há abas, mostra tudo
+        !param.tabId || // Se o parâmetro não tem tabId, mostra (ex: parâmetros globais)
+        param.tabId === this.currentTabId || // Se o tabId corresponde à aba atual
+        (this.currentTabId === 'default' && !param.tabId) // Para a aba 'default', se não houver tabId específico
+    );
+
     if(parametersToRender.length === 0 && config.tabs && config.tabs.find(t => t.id === this.currentTabId)){ contentContainer.innerHTML = `<p class="config-no-params">No parameters in the '${this.currentTabId}' tab.</p>`; return; }
+    
+    // Renderiza cada parâmetro
     contentContainer.innerHTML = `<div class="node-config-section">${parametersToRender.map(param => this.renderParameter(param)).join('')}</div>`;
+    
+    // Adiciona listeners para os campos de input
     this.setupParameterChangeListeners(parametersToRender);
+
+    // Adiciona listeners para os botões dinâmicos (Add/Delete Port)
+    this.setupDynamicPortButtons(parametersToRender);
   }
 
   private renderParameter(param: ConfigParameter): string {
     let currentValue: any;
     if (!this.currentItem) return '';
 
-    // Prioriza o campo 'data' para todos os tipos de item configuráveis (Node, Connection)
-    // Para StickyNote, acessa 'style' diretamente pelos IDs dos parâmetros definidos em getItemConfig
+    // Lógica de obtenção de valor para diferentes tipos de item
     if (this.currentItemType === 'stickyNote' && 'style' in this.currentItem && param.id in this.currentItem.style) {
         currentValue = (this.currentItem as StickyNote).style[param.id as keyof StickyNote['style']];
-    } else if ('data' in this.currentItem && this.currentItem.data) { // Para Nodes e Connections
+    } else if (this.currentItemType === 'node') {
+        const node = this.currentItem as Node;
+        // Lógica para portas dinâmicas
+        if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-name')) {
+            const portId = param.id.split('-')[2];
+            currentValue = node.dynamicInputs.find(p => p.id === portId)?.variableName;
+        } else if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-hidden')) {
+            const portId = param.id.split('-')[2];
+            currentValue = node.dynamicInputs.find(p => p.id === portId)?.isHidden;
+        } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-name')) {
+            const portId = param.id.split('-')[2];
+            currentValue = node.dynamicOutputs.find(p => p.id === portId)?.name;
+        } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-value')) {
+            const portId = param.id.split('-')[2];
+            currentValue = node.dynamicOutputs.find(p => p.id === portId)?.outputValue;
+        } else { // Parâmetros de 'data' do nó
+            currentValue = node.data?.[param.id];
+        }
+    } else if (this.currentItemType === 'connection' && this.currentItem.data) {
         currentValue = this.currentItem.data?.[param.id];
     }
     currentValue = currentValue ?? param.defaultValue; // Usa defaultValue se currentValue for undefined ou null
 
     let fieldHtml = '';
-    const inputId = `config-param-${param.id}`; // Garante IDs únicos no DOM
+    const inputId = `config-param-${param.id}`;
 
+    // NOVO: Tipo 'button' para os botões de adicionar/deletar portas
+    if (param.type === 'button') {
+        fieldHtml = `
+            <div class="form-group">
+                <button type="button" class="btn btn-secondary" id="${inputId}" data-param-id="${param.id}">
+                    ${param.label}
+                </button>
+                ${param.description ? `<div class="help">${param.description}</div>` : ''}
+            </div>
+        `;
+        return fieldHtml;
+    }
+
+    // Código existente para outros tipos de parâmetros
     switch (param.type) {
         case 'text':
         case 'number':
@@ -264,7 +404,6 @@ export class ConfigPanel {
               ${param.description ? `<div class="help">${param.description}</div>` : ''}
             </div>`;
             break;
-        // Adicionar outros tipos aqui se necessário (multiselect, file, datetime)
         default:
             fieldHtml = `<div class="form-group"><label>${param.label}</label><p>Unsupported parameter type: ${param.type}</p></div>`;
     }
@@ -272,29 +411,28 @@ export class ConfigPanel {
   }
 
   private setupParameterChangeListeners(parameters: ConfigParameter[]): void {
-    if (!this.panelElement) return;
-    parameters.forEach(param => {
+    if (!this.panelElement || !this.currentItem || !this.currentItemType) return;
+
+    parameters.filter(p => p.type !== 'button').forEach(param => { // Ignora botões aqui
       const inputId = `config-param-${param.id}`;
       const inputEl = this.panelElement?.querySelector(`#${inputId}`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
       if (inputEl) {
         const eventType = (inputEl.tagName === 'SELECT' || inputEl.type === 'checkbox' || inputEl.type === 'color') ? 'change' : 'input';
         inputEl.addEventListener(eventType, () => this.handleParameterChange(param, inputEl));
-        // Para 'input' de texto, 'input' é melhor para feedback imediato, mas 'change' também é bom.
         if (inputEl.type !== 'color' && inputEl.tagName !== 'SELECT' && inputEl.type !== 'checkbox' && eventType === 'input') {
-             inputEl.addEventListener('change', () => this.handleParameterChange(param, inputEl)); // Garante que 'change' também dispare
+             inputEl.addEventListener('change', () => this.handleParameterChange(param, inputEl));
         }
 
         if(param.type === 'color') {
             const hexInput = this.panelElement?.querySelector(`[data-hex-for="${inputId}"]`) as HTMLInputElement;
-            const colorInput = inputEl as HTMLInputElement; // Já é o input type color
+            const colorInput = inputEl as HTMLInputElement;
             if(hexInput && colorInput){
-                colorInput.addEventListener('input', () => hexInput.value = colorInput.value); // Atualiza hex quando color muda
-                hexInput.addEventListener('change', () => { // Atualiza color quando hex muda (e é válido)
+                colorInput.addEventListener('input', () => hexInput.value = colorInput.value);
+                hexInput.addEventListener('change', () => {
                     if (hexInput.checkValidity() && /^#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/i.test(hexInput.value)) {
                          colorInput.value = hexInput.value;
-                         this.handleParameterChange(param, colorInput); // Dispara a atualização com o valor do colorInput
+                         this.handleParameterChange(param, colorInput);
                     } else {
-                        // Opcional: mostrar erro se o formato hex for inválido, ou reverter para o valor do colorInput
                         hexInput.value = colorInput.value; 
                     }
                 });
@@ -304,11 +442,62 @@ export class ConfigPanel {
     });
   }
 
+  // NOVO: Setup de listeners para os botões dinâmicos
+  private setupDynamicPortButtons(parameters: ConfigParameter[]): void {
+    if (!this.panelElement || !this.currentItem || this.currentItemType !== 'node') return;
+    const node = this.currentItem as Node;
+
+    // Botão "Add Input Variable"
+    const addInputVarButton = this.panelElement.querySelector('#config-param-add-input-variable-button');
+    if (addInputVarButton) {
+        addInputVarButton.addEventListener('click', () => {
+            if (this.currentItem) {
+                // Pede um nome para a variável (usar um modal ou prompt mais elegante em produção)
+                const varName = prompt("Enter new input variable name:");
+                if (varName && varName.trim() !== '') {
+                    this.nodeManager.addDynamicInputPort(node.id, varName.trim());
+                    // Re-renderiza o painel para mostrar a nova porta
+                    this.show(node, 'node'); 
+                }
+            }
+        });
+    }
+
+    // Botão "Add Output Port"
+    const addOutputPortButton = this.panelElement.querySelector('#config-param-add-output-port-button');
+    if (addOutputPortButton) {
+        addOutputPortButton.addEventListener('click', () => {
+            if (this.currentItem) {
+                const portName = prompt("Enter new output port name:");
+                if (portName && portName.trim() !== '') {
+                    this.nodeManager.addDynamicOutputPort(node.id, portName.trim());
+                    this.show(node, 'node');
+                }
+            }
+        });
+    }
+
+    // Botões de deletar portas dinâmicas
+    parameters.filter(p => p.type === 'button' && (p.id.startsWith('dynamic-input-') || p.id.startsWith('dynamic-output-')) && p.id.endsWith('-delete')).forEach(param => {
+        const deleteButton = this.panelElement?.querySelector(`#config-param-${param.id}`);
+        if (deleteButton) {
+            deleteButton.addEventListener('click', () => {
+                const portId = param.id.split('-')[2]; // Extract port ID from the parameter ID
+                if (confirm(`Are you sure you want to delete this port?`)) {
+                    this.nodeManager.removePort(portId);
+                    this.show(node, 'node'); // Re-renderiza o painel
+                }
+            });
+        }
+    });
+  }
+
+
   private handleParameterChange(param: ConfigParameter, inputElement: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {
     if (!this.currentItem || !this.currentItemType) return;
     let value: any;
     if (inputElement.type === 'checkbox') value = (inputElement as HTMLInputElement).checked;
-    else if (inputElement.type === 'number') value = inputElement.value === '' ? param.defaultValue : parseFloat(inputElement.value); // Trata campo numérico vazio
+    else if (inputElement.type === 'number') value = inputElement.value === '' ? param.defaultValue : parseFloat(inputElement.value);
     else value = inputElement.value;
 
     // TODO: Implementar validação completa baseada em param.validation e exibir erros no div.error
@@ -317,17 +506,34 @@ export class ConfigPanel {
     // if (errorDiv) { errorDiv.textContent = isValid ? '' : 'Invalid value'; errorDiv.style.display = isValid ? 'none' : 'block'; }
     // if(!isValid) return;
 
-
     if (this.currentItemType === 'node') {
         const node = this.currentItem as Node;
-        node.data = node.data || {};
-        node.data[param.id] = value;
-        this.nodeManager.updateNode(this.currentItem.id, { data: node.data, status: 'unsaved' });
+        // Lógica de atualização para parâmetros de porta dinâmica
+        if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-name')) {
+            const portId = param.id.split('-')[2];
+            this.nodeManager.updatePort(portId, { variableName: value, name: value }); // Atualiza nome e variableName
+        } else if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-hidden')) {
+            const portId = param.id.split('-')[2];
+            this.nodeManager.updatePort(portId, { isHidden: value });
+        } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-name')) {
+            const portId = param.id.split('-')[2];
+            this.nodeManager.updatePort(portId, { name: value });
+        } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-value')) {
+            const portId = param.id.split('-')[2];
+            this.nodeManager.updatePort(portId, { outputValue: value });
+        } else { // Parâmetros de 'data' do nó
+            const oldData = JSON.parse(JSON.stringify(node.data || {})); // Clona o data antigo
+            node.data = node.data || {};
+            node.data[param.id] = value;
+            // Emite evento para que o NodeEditor/NodeManager possa parsear variáveis
+            this.events.emit('nodeDataChangedWithVariables', { nodeId: node.id, oldData: oldData, newData: node.data });
+        }
+        this.nodeManager.updateNode(this.currentItem.id, { status: 'unsaved' }); // Marca como não salvo
     } else if (this.currentItemType === 'stickyNote') {
         const note = this.currentItem as StickyNote;
-        const styleKey = param.id as keyof StickyNote['style']; // O ID do parâmetro é a chave de estilo
+        const styleKey = param.id as keyof StickyNote['style'];
         if (styleKey in note.style) {
-            const styleUpdates = { ...note.style, [styleKey]: value }; // Cria um novo objeto de estilo
+            const styleUpdates = { ...note.style, [styleKey]: value };
             this.stickyNoteManager.updateNote(this.currentItem.id, { style: styleUpdates });
         }
     } else if (this.currentItemType === 'connection') {
@@ -351,18 +557,13 @@ export class ConfigPanel {
       this.panelElement.querySelector('#config-apply-changes')?.addEventListener('click', () => {
         if (!this.currentItem) return; 
         if (!this.validateAllParameters()) { 
-            // Notificar o usuário sobre erros de validação.
-            // Poderia focar no primeiro campo inválido.
             this.events.emit('validationError', "Please correct the errors in the form.");
             return; 
         }
         if (this.currentItemType === 'node') {
-            // O status 'unsaved' já foi setado durante handleParameterChange.
-            // Aqui, podemos confirmar a mudança.
-            this.nodeManager.updateNode(this.currentItem.id, { status: (this.currentItem as Node).status === 'unsaved' ? undefined : 'success' }); // Remove 'unsaved' ou define como 'success'
+            this.nodeManager.updateNode(this.currentItem.id, { status: (this.currentItem as Node).status === 'unsaved' ? undefined : 'success' });
         }
         this.events.emit('configApplied', this.currentItem);
-        // Opcional: this.hide();
       });
       const testButton = this.panelElement.querySelector('#config-test-node');
       if(testButton) {

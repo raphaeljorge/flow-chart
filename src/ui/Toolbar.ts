@@ -8,6 +8,7 @@ interface ToolbarButton {
   action: () => void; // Ação a ser executada ao clicar
   isActive?: () => boolean; // Opcional: função para verificar se o botão deve parecer ativo
   isToggle?: boolean; // Se o botão é um toggle
+  disabled?: boolean; // Se o botão está desabilitado por padrão
 }
 
 export class Toolbar {
@@ -56,7 +57,13 @@ export class Toolbar {
       buttonElement.classList.add('active'); //
     }
 
+    if (buttonDef.disabled) { // Adicionar estado desabilitado
+        buttonElement.disabled = true;
+        buttonElement.classList.add('disabled');
+    }
+
     buttonElement.addEventListener('click', () => {
+      if (buttonElement.disabled) return; // Não executa se desabilitado
       buttonDef.action();
       if (buttonDef.isToggle) { // Se for um botão de toggle
           if (buttonDef.isActive) { // Se tiver uma função para verificar o estado
@@ -76,6 +83,15 @@ export class Toolbar {
       const buttonElement = this.toolbarElement?.querySelector(`#${buttonId}`) as HTMLButtonElement;
       if (buttonElement) {
           buttonElement.classList.toggle('active', isActive);
+      }
+  }
+
+  // Novo método para atualizar o estado 'disabled' de um botão
+  public updateButtonDisabledState(buttonId: string, isDisabled: boolean): void {
+      const buttonElement = this.toolbarElement?.querySelector(`#${buttonId}`) as HTMLButtonElement;
+      if (buttonElement) {
+          buttonElement.disabled = isDisabled;
+          buttonElement.classList.toggle('disabled', isDisabled);
       }
   }
 

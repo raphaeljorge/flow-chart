@@ -26,8 +26,13 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
+  height: 100%;
   margin: 0;
+  padding: 0;
+}
+
+body {
   display: flex;
   min-width: 320px;
   min-height: 100vh;
@@ -41,9 +46,8 @@ body {
 }
 
 .canvas-container {
-  flex: 1;
-  height: 100%;
-  background-color: #0a0a0a;
+  flex: 1; /* Permite que o canvas-container ocupe o espaço disponível na largura */
+  background-color: #0a0a0a; /* Deve mostrar um fundo escuro */
   overflow: hidden;
   position: relative;
 }
@@ -260,6 +264,19 @@ canvas {
 
 .quick-add-item:hover {
   background: #3a3a3a;
+}
+
+.quick-add-item.highlighted {
+  background: #4a4a4a; /* Cor de fundo para o item destacado */
+  border-left: 3px solid #6366f1; /* Linha à esquerda para indicar destaque */
+  padding-left: 9px; /* Ajusta o padding para compensar a borda */
+}
+
+.quick-add-no-results {
+  padding: 8px 12px;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
 }
 
 .floating-menu {
@@ -506,7 +523,21 @@ canvas {
   color: #ef4444;
   font-size: 12px;
   margin-top: 4px;
+  display: block; /* Padrão deve ser block para aparecer */
 }
+
+/* Esconde a mensagem de erro por padrão */
+.form-group:not(.has-error) .error {
+    display: none;
+}
+
+/* Estilos para validação de formulário */
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea {
+  border-color: #ef4444; /* Vermelho para campos com erro */
+}
+
 
 .form-group .help {
   color: #666;
@@ -541,6 +572,11 @@ canvas {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+
+/* Ajustes para o input de cor hexadecimal */
+.color-picker input[type="text"][data-hex-for] {
+    flex-grow: 1; /* Permite que o campo de texto cresça */
 }
 
 .code-editor {

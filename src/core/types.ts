@@ -20,6 +20,10 @@ export interface NodePort {
   connections: string[];
   maxConnections?: number;
   description?: string;
+  isDynamic?: boolean;
+  variableName?: string;
+  isHidden?: boolean;
+  outputValue?: string;
 }
 
 export interface Node {
@@ -30,8 +34,12 @@ export interface Node {
   position: Point;
   width: number;
   height: number;
-  inputs: NodePort[];
-  outputs: NodePort[];
+
+  fixedInputs: NodePort[];
+  fixedOutputs: NodePort[];
+  dynamicInputs: NodePort[];
+  dynamicOutputs: NodePort[];
+
   data?: any;
   minWidth?: number;
   minHeight?: number;
@@ -86,9 +94,10 @@ export interface Connection {
   targetPortId: string;
   sourceNodeId: string;
   targetNodeId: string;
-  data?: any; // Adicionado para propriedades configuráveis (ex: label, cor)
-  // Adicionar 'config?: NodeConfig;' se quisermos uma estrutura de configuração dedicada para conexões.
-  // Por ora, 'data' será usado diretamente.
+  data?: {
+    label?: string;
+    color?: string;
+  };
 }
 
 export interface ViewState {
@@ -108,8 +117,8 @@ export interface NodeDefinition {
   config?: NodeConfig; // NodeConfig aqui se refere à config do NÓ
   defaultWidth?: number;
   defaultHeight?: number;
-  defaultInputs?: Array<Omit<NodePort, 'id' | 'nodeId' | 'position' | 'connections'>>;
-  defaultOutputs?: Array<Omit<NodePort, 'id' | 'nodeId' | 'position' | 'connections'>>;
+  defaultInputs?: Array<Omit<NodePort, 'id' | 'nodeId' | 'position' | 'connections' | 'isDynamic' | 'variableName' | 'isHidden' | 'outputValue'>>;
+  defaultOutputs?: Array<Omit<NodePort, 'id' | 'nodeId' | 'position' | 'connections' | 'isDynamic' | 'variableName' | 'isHidden' | 'outputValue'>>;
 }
 
 export interface NodeEditorOptions {
@@ -143,6 +152,11 @@ export interface ReconnectingConnectionInfo {
     fixedNode: Node;
 }
 
-// Novo: Tipo para itens que podem ser configurados pelo ConfigPanel
 export type ConfigurableItem = Node | StickyNote | Connection;
 export type ConfigurableItemType = 'node' | 'stickyNote' | 'connection';
+
+export interface NodeDataVariableParseEvent {
+  nodeId: string;
+  oldData: any;
+  newData: any;
+}

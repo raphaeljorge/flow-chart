@@ -48,7 +48,9 @@ export interface IconOptions {
       'arrows-in': '\uf13b', // ph-arrows-in
       'cube': '\uf27a', // ph-cube (ícone padrão)
       'question': '\uf469', // ph-question
-      // Adicione outros ícones conforme necessário
+      'arrow-counter-clockwise': '\uf0e8', // Ícone para Undo
+      'arrow-clockwise': '\uf0e7',      // Ícone para Redo
+      'magnifying-glass': '\uf3b0', // Para Zoom to Selection
     };
   
     constructor() {

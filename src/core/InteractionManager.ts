@@ -1,4 +1,3 @@
-// src/core/InteractionManager.ts
 import { EventEmitter } from 'eventemitter3';
 import { CanvasEngine } from './CanvasEngine';
 import { NodeManager } from './NodeManager';
@@ -39,12 +38,12 @@ interface InteractiveElement {
 }
 
 export interface PendingConnectionState {
-    sourcePort: NodePort; // Porta de onde o arraste iniciou (pode ser a fixa na reconexão)
-    sourceNode: Node;     // Nó da sourcePort
-    fromPosition: Point;
-    currentMousePosition: Point;
-    compatibleTargetPortId: string | null;
-    reconnectingInfo?: ReconnectingConnectionInfo;
+  sourcePort: NodePort; // Porta de onde o arraste iniciou (pode ser a fixa na reconexão)
+  sourceNode: Node;     // Nó da sourcePort
+  fromPosition: Point;
+  currentMousePosition: Point;
+  compatibleTargetPortId: string | null;
+  reconnectingInfo?: ReconnectingConnectionInfo;
 }
 
 export class InteractionManager {
@@ -103,16 +102,54 @@ export class InteractionManager {
   public getPortAbsolutePosition(node: Node, port: NodePort, viewState: ViewState): Point {
     const headerHeight = 40; 
     const portVerticalSpacing = 24; 
-    let portIndex = port.type === 'input' 
-        ? node.inputs.findIndex(p => p.id === port.id) 
-        : node.outputs.findIndex(p => p.id === port.id);
 
+    let portIndex = -1;
+    let portsList: NodePort[];
+
+    if (port.isDynamic) {
+        if (port.type === 'input') {
+            portsList = node.dynamicInputs.filter(p => !p.isHidden);
+            portIndex = portsList.findIndex(p => p.id === port.id);
+        } else { // dynamic output
+            portsList = node.dynamicOutputs;
+            portIndex = portsList.findIndex(p => p.id === port.id);
+        }
+    } else { // fixed port
+        if (port.type === 'input') {
+            portsList = node.fixedInputs;
+            portIndex = portsList.findIndex(p => p.id === port.id);
+        } else { // fixed output
+            portsList = node.fixedOutputs;
+            portIndex = portsList.findIndex(p => p.id === port.id);
+        }
+    }
+
+    // Se a porta estiver oculta, não deve ter uma posição "clicável" visualmente
+    if (port.isHidden && port.isDynamic) {
+        // Retorna uma posição fora da tela ou um ponto de referência para que não seja interativo
+        return { x: -9999, y: -9999 }; 
+    }
+
+    // Fallback caso a porta não seja encontrada na lista ou se o index for inválido
     if (portIndex === -1) { 
         console.warn(`Port ${port.id} not found in node ${node.id} lists for position calculation.`);
         return { x: node.position.x + (port.type === 'input' ? 0 : node.width), y: node.position.y + node.height / 2 };
     }
 
-    const portRelativeY = headerHeight + portVerticalSpacing * (portIndex + 0.5);
+    // Cálculo da posição vertical baseado na quantidade de portas *visíveis*
+    // Portas fixas vêm primeiro, depois as dinâmicas
+    let totalPortsBeforeThisSection = 0;
+    if (port.isDynamic) {
+        if (port.type === 'input') {
+            totalPortsBeforeThisSection = node.fixedInputs.length;
+        } else { // dynamic output
+            totalPortsBeforeThisSection = node.fixedOutputs.length;
+        }
+    }
+    
+    // A altura de renderização de um nó deve acomodar todas as portas.
+    // O cálculo de Y é baseado na ordem na lista (fixa ou dinâmica) e na posição relativa
+    const portRelativeY = headerHeight + portVerticalSpacing * (totalPortsBeforeThisSection + portIndex + 0.5);
     const portRelativeX = port.type === 'input' ? 0 : node.width;
 
     return {
@@ -140,8 +177,12 @@ export class InteractionManager {
     
     const nodes = this.nodeManager.getNodes().slice().reverse();
     for (const node of nodes) {
-      const allPorts = [...node.inputs, ...node.outputs];
+      // Modificado: Itera sobre todos os tipos de portas
+      const allPorts = [...node.fixedInputs, ...node.fixedOutputs, ...node.dynamicInputs, ...node.dynamicOutputs];
       for (const port of allPorts) {
+        // Ignora portas ocultas para detecção de clique
+        if (port.isHidden) continue; 
+
         const portAbsPos = this.getPortAbsolutePosition(node, port, viewState);
         const dx = canvasPoint.x - portAbsPos.x; const dy = canvasPoint.y - portAbsPos.y;
         if (dx * dx + dy * dy < portHitRadius * portHitRadius) {
@@ -172,7 +213,10 @@ export class InteractionManager {
         if (itemHit.type === 'node') {
             const node = this.nodeManager.getNode(itemHit.id);
             if(node) { 
+                // Assumimos que o cabeçalho sempre tem 40px de altura
                 const headerHeight = 40; 
+                // A posição Y é relativa ao topo do nó.
+                // Se o ponto clicado estiver dentro do cabeçalho, é 'header'.
                 const region = canvasPoint.y < node.position.y + headerHeight ? 'header' : 'body';
                 return { type: 'node', id: itemHit.id, item: itemHit, region };
             }
@@ -201,7 +245,7 @@ export class InteractionManager {
   }
   
   private nodeToDraggableItem(node: Node): DraggableItem {
-      return { id: node.id, type: 'node', position: node.position, width: node.width, height: node.height };
+    return { id: node.id, type: 'node', position: node.position, width: node.width, height: node.height };
   }
 
   private handlePointerDown = (e: CanvasPointerEvent): void => {
@@ -223,6 +267,12 @@ export class InteractionManager {
         }
         break;
       case 'port':
+        // NÃO PERMITIR INICIAR CONEXÃO DE PORTAS OCULTAS
+        if (interactiveElement.portDetails?.isHidden && interactiveElement.portDetails.isDynamic) {
+             this.mode = 'idle'; // Reinicia o modo para idle
+             return; // Ignora o clique
+        }
+
         if (interactiveElement.portDetails && interactiveElement.item && this.mode === 'idle') {
           this.mode = 'draggingConnection';
           const sourceNode = this.nodeManager.getNode(interactiveElement.portDetails.nodeId);
@@ -296,9 +346,14 @@ export class InteractionManager {
       const targetElement = this.getInteractiveElementAtPoint(canvasPoint);
       let compatiblePortId: string | null = null;
       if (targetElement.type === 'port' && targetElement.portDetails) {
-          potentialTargetPort = targetElement.portDetails;
-          if (this.isConnectionCompatible(this.pendingConnection.sourcePort, potentialTargetPort, this.mode === 'reconnectingConnection' ? this.pendingConnection.reconnectingInfo : undefined)) {
-              compatiblePortId = potentialTargetPort.id;
+          // Ignora portas ocultas como targets
+          if (targetElement.portDetails.isHidden) {
+              this.pendingConnection.currentMousePosition = canvasPoint; // Continua a linha para o mouse
+          } else {
+              potentialTargetPort = targetElement.portDetails;
+              if (this.isConnectionCompatible(this.pendingConnection.sourcePort, potentialTargetPort, this.mode === 'reconnectingConnection' ? this.pendingConnection.reconnectingInfo : undefined)) {
+                  compatiblePortId = potentialTargetPort.id;
+              }
           }
       }
       if (compatiblePortId && potentialTargetPort) {
@@ -314,13 +369,24 @@ export class InteractionManager {
         const interactiveElement = this.getInteractiveElementAtPoint(canvasPoint);
         switch (interactiveElement.type) {
             case 'resizeHandle': if(interactiveElement.resizeHandleType) this.setCursor(this.getCursorForResizeHandle(interactiveElement.resizeHandleType)); break;
-            case 'port': this.setCursor('pointer'); break;
+            case 'port': 
+                // Não muda o cursor para portas ocultas
+                if (!interactiveElement.portDetails?.isHidden) {
+                    this.setCursor('pointer'); 
+                } else {
+                    this.setCursor('default');
+                }
+                break;
             case 'connection': this.setCursor('pointer'); break;
             case 'node': case 'stickyNote': this.setCursor('move'); break;
             default: this.setCursor('default');
         }
-        if(interactiveElement.type === 'port' && interactiveElement.portDetails) this.events.emit('portHoverChanged', interactiveElement.portDetails.id);
-        else this.events.emit('portHoverChanged', null);
+        // Emite hover para portas visíveis
+        if(interactiveElement.type === 'port' && interactiveElement.portDetails && !interactiveElement.portDetails.isHidden) {
+            this.events.emit('portHoverChanged', interactiveElement.portDetails.id);
+        } else {
+            this.events.emit('portHoverChanged', null);
+        }
     } else if (this.mode === 'panning' && this.panStartPoint) {
       const dx = clientPoint.x - this.panStartPoint.x; const dy = clientPoint.y - this.panStartPoint.y;
       this.canvasEngine.pan(dx, dy); this.panStartPoint = clientPoint;
@@ -343,18 +409,16 @@ export class InteractionManager {
   };
 
   private isConnectionCompatible(sourcePortForPending: NodePort, targetPortCandidate: NodePort, reconInfo?: ReconnectingConnectionInfo): boolean {
-    if (reconInfo) {
-        // sourcePortForPending é a porta FIXA na reconexão. targetPortCandidate é a porta sob o mouse.
-        if (targetPortCandidate.id === sourcePortForPending.id) return false; // Não pode reconectar à mesma porta
-        if (targetPortCandidate.nodeId === sourcePortForPending.nodeId) return false; // Não pode reconectar ao mesmo nó
+    // Nova verificação: Não permite conectar em portas ocultas
+    if (targetPortCandidate.isHidden) return false;
 
-        // Se estou arrastando a extremidade 'source' original, a fixedPort é a target original (input).
-        // A targetPortCandidate (sob o mouse) se tornará a nova source, então deve ser output.
+    // Lógica existente de compatibilidade de tipos e nós
+    if (reconInfo) {
+        if (targetPortCandidate.id === sourcePortForPending.id) return false;
+        if (targetPortCandidate.nodeId === sourcePortForPending.nodeId) return false;
         if (reconInfo.draggedEnd === 'source') return targetPortCandidate.type === 'output' && sourcePortForPending.type === 'input';
-        // Se estou arrastando a extremidade 'target' original, a fixedPort é a source original (output).
-        // A targetPortCandidate (sob o mouse) se tornará a nova target, então deve ser input.
         else return targetPortCandidate.type === 'input' && sourcePortForPending.type === 'output';
-    } else { // Nova conexão
+    } else {
         if (sourcePortForPending.nodeId === targetPortCandidate.nodeId) return false;
         if (sourcePortForPending.type === 'output' && targetPortCandidate.type === 'input') return true;
         if (sourcePortForPending.type === 'input' && targetPortCandidate.type === 'output') return true;
@@ -366,7 +430,8 @@ export class InteractionManager {
     const { canvasPoint, originalEvent } = e;
     if ((this.mode === 'draggingConnection' || this.mode === 'reconnectingConnection') && this.pendingConnection) {
       const targetElement = this.getInteractiveElementAtPoint(canvasPoint);
-      if (targetElement.type === 'port' && targetElement.portDetails && this.pendingConnection.compatibleTargetPortId === targetElement.portDetails.id) {
+      // Completa a conexão APENAS se o target for uma porta compatível E NÃO OCULTA
+      if (targetElement.type === 'port' && targetElement.portDetails && !targetElement.portDetails.isHidden && this.pendingConnection.compatibleTargetPortId === targetElement.portDetails.id) {
           if (this.mode === 'reconnectingConnection' && this.pendingConnection.reconnectingInfo) {
               this.tryCompleteReconnection(this.pendingConnection.reconnectingInfo, targetElement.portDetails);
           } else { this.tryCompleteConnection(this.pendingConnection.sourcePort, targetElement.portDetails); }
@@ -425,8 +490,22 @@ export class InteractionManager {
     if (!this.activeResizeItem || !this.activeResizeHandle || !this.dragStartPoint || !this.originalResizeItemRect) return;
     const viewState = this.canvasEngine.getViewState();
     const itemData = this.activeResizeItem.type === 'node' ? this.nodeManager.getNode(this.activeResizeItem.id) : this.stickyNoteManager.getNote(this.activeResizeItem.id);
+    
+    // Altura mínima ajustada para acomodar portas dinâmicas
+    // A altura padrão do cabeçalho é 40px, e cada porta visível ocupa 24px verticalmente.
+    // O rodapé do nó também tem um padding de 12px para o ID.
+    const baseMinHeight = 40 + (itemData?.minHeight || 50); 
+    let dynamicPortHeight = 0;
+    if (itemData?.type === 'node') {
+        // Soma a altura das portas fixas + dinâmicas visíveis
+        const visibleInputPorts = itemData.fixedInputs.length + itemData.dynamicInputs.filter(p => !p.isHidden).length;
+        const visibleOutputPorts = itemData.fixedOutputs.length + itemData.dynamicOutputs.length;
+        dynamicPortHeight = Math.max(visibleInputPorts, visibleOutputPorts) * 24; // 24px por porta
+    }
+    const minHeight = baseMinHeight + dynamicPortHeight;
+    
     const minWidth = (itemData && 'minWidth' in itemData && itemData.minWidth !== undefined ? itemData.minWidth : 50);
-    const minHeight = (itemData && 'minHeight' in itemData && itemData.minHeight !== undefined ? itemData.minHeight : 50);
+
     let newX = this.originalResizeItemRect.x; let newY = this.originalResizeItemRect.y;
     let newWidth = this.originalResizeItemRect.width; let newHeight = this.originalResizeItemRect.height;
     const dx = currentCanvasPoint.x - this.dragStartPoint.x; const dy = currentCanvasPoint.y - this.dragStartPoint.y;
@@ -464,12 +543,14 @@ export class InteractionManager {
   }
 
   private getItemBodyAtPoint(point: Point): DraggableItem | null {
+    // Primeiro notas adesivas (mais fácil de sobrepor)
     const stickyNotes = this.stickyNoteManager.getNotes().slice().reverse();
     for (const note of stickyNotes) {
       if (this.isPointInRect(point, note.position, { width: note.width, height: note.height })) {
         return { id: note.id, type: 'stickyNote', position: note.position, width: note.width, height: note.height };
       }
     }
+    // Depois nós
     const nodes = this.nodeManager.getNodes().slice().reverse();
     for (const node of nodes) {
       if (this.isPointInRect(point, node.position, { width: node.width, height: node.height })) {

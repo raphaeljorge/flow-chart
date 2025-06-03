@@ -95,6 +95,7 @@ export class RenderService {
     }
   }
 
+  // Modificado: Lógica de desenho de nó aprimorada para portas dinâmicas
   private drawNode(ctx: CanvasRenderingContext2D, node: Node, viewState: ViewState): void {
     const x = node.position.x; const y = node.position.y;
     const width = node.width; const height = node.height; const headerHeight = 40; 
@@ -109,6 +110,7 @@ export class RenderService {
         ctx.fillRect(iconX, iconY, iconSize, iconSize); 
         ctx.fillStyle = '#ffffff'; ctx.font = `${12 / viewState.scale}px Inter, sans-serif`; 
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        // Apenas como placeholder, idealmente a IconService resolveria isso
         ctx.fillText(node.icon.substring(0,2).toUpperCase(), iconX + iconSize / 2, iconY + iconSize / 2);
     }
     ctx.fillStyle = '#ffffff'; ctx.font = `${12 / viewState.scale}px Inter, sans-serif`;
@@ -121,30 +123,77 @@ export class RenderService {
     }
     ctx.fillStyle = '#666666'; ctx.font = `${10 / viewState.scale}px Inter, sans-serif`;
     ctx.fillText(`#${node.id.slice(0, 8)}`, x + (12/viewState.scale), y + height - (12/viewState.scale));
+    
     const portSize = 10 / viewState.scale;
-    node.inputs.forEach((port) => {
+
+    // --- Desenhar portas fixas e dinâmicas
+    // Organiza todas as portas do nó, separando-as por tipo (entrada/saída) e ordem (fixa, dinâmica visível)
+    const allInputPorts = [...node.fixedInputs, ...node.dynamicInputs.filter(p => !p.isHidden)];
+    const allOutputPorts = [...node.fixedOutputs, ...node.dynamicOutputs];
+
+    allInputPorts.forEach((port, index) => {
+        // A posição absoluta é calculada pelo InteractionManager, que já considera a ordem e visibilidade
         const portAbsPos = this.interactionManager.getPortAbsolutePosition(node, port, viewState);
-        this.drawPort(ctx, port, portAbsPos.x, portAbsPos.y, portSize, viewState, 
+        this.drawPort(
+            ctx, 
+            port, 
+            portAbsPos.x, 
+            portAbsPos.y, 
+            portSize, 
+            viewState, 
             this.pendingConnection?.compatibleTargetPortId === port.id || this.hoveredPortIdIdle === port.id
         );
+        // Desenha o nome da variável se for uma porta dinâmica de entrada
+        if (port.isDynamic && port.variableName) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(port.variableName, portAbsPos.x + portSize, portAbsPos.y);
+        }
     });
-    node.outputs.forEach((port) => {
+
+    allOutputPorts.forEach((port, index) => {
         const portAbsPos = this.interactionManager.getPortAbsolutePosition(node, port, viewState);
-        this.drawPort(ctx, port, portAbsPos.x, portAbsPos.y, portSize, viewState,
+        this.drawPort(
+            ctx, 
+            port, 
+            portAbsPos.x, 
+            portAbsPos.y, 
+            portSize, 
+            viewState,
             this.pendingConnection?.compatibleTargetPortId === port.id || this.hoveredPortIdIdle === port.id
         );
+        // Desenha o nome da porta ou o valor de saída para portas dinâmicas de saída
+        if (port.isDynamic && port.outputValue) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            // Mostra o nome da porta ou uma prévia do valor de saída
+            ctx.fillText(port.name + (port.outputValue ? `: ${port.outputValue.substring(0,20)}...` : ''), portAbsPos.x - portSize, portAbsPos.y);
+        } else if (port.name) { // Para portas de saída fixas ou dinâmicas sem valor de saída definido ainda
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(port.name, portAbsPos.x - portSize, portAbsPos.y);
+        }
     });
   }
 
   private drawPort(ctx: CanvasRenderingContext2D, port: NodePort, canvasX: number, canvasY: number, size: number, viewState: ViewState, isHighlighted: boolean = false): void {
+    // Não desenha portas ocultas
+    if (port.isHidden) return;
+
     ctx.lineWidth = (isHighlighted ? 2 : 1) / viewState.scale;
-    ctx.strokeStyle = isHighlighted ? '#5A93E4' : '#3a3a3a';
-    ctx.fillStyle = isHighlighted ? '#3c6493' : '#2a2a2a';
+    // Cores diferentes para portas dinâmicas vs. fixas
+    const borderColor = port.isDynamic ? '#FFD700' : (isHighlighted ? '#5A93E4' : '#3a3a3a'); // Ouro para dinâmicas
+    const fillColor = port.isDynamic ? '#B8860B' : (isHighlighted ? '#3c6493' : '#2a2a2a'); // Marrom para dinâmicas
+
+    ctx.strokeStyle = borderColor;
+    ctx.fillStyle = fillColor;
     ctx.beginPath(); ctx.arc(canvasX, canvasY, size / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
-    ctx.textBaseline = 'middle'; const labelOffset = size;
-    if (port.type === 'input') { ctx.textAlign = 'left'; ctx.fillText(port.name, canvasX + labelOffset, canvasY); }
-    else { ctx.textAlign = 'right'; ctx.fillText(port.name, canvasX - labelOffset, canvasY); }
   }
   
   private drawStickyNote(ctx: CanvasRenderingContext2D, note: StickyNote, viewState: ViewState): void {
@@ -187,8 +236,10 @@ export class RenderService {
     const connections = this.nodeManager.getConnections();
     const pendingReconInfo = this.interactionManager.getPendingConnection()?.reconnectingInfo;
     connections.forEach(conn => {
+        // Se a conexão original estiver sendo reconectada, desenha como ghosted
         if (pendingReconInfo && pendingReconInfo.originalConnection.id === conn.id) {
-            this.drawBezierConnection(conn, this.viewState!, this.ctx!, true); return;
+            this.drawBezierConnection(conn, this.viewState!, this.ctx!, true); 
+            return;
         }
         const isSelected = this.selectionManager.isSelected(conn.id);
         this.drawBezierConnection(conn, this.viewState!, this.ctx!, false, isSelected);
@@ -203,11 +254,17 @@ export class RenderService {
     if (sourceNode && targetNode && sourcePort && targetPort) {
         const p0 = this.interactionManager.getPortAbsolutePosition(sourceNode, sourcePort, viewState);
         const p3 = this.interactionManager.getPortAbsolutePosition(targetNode, targetPort, viewState);
+        
+        // Não desenha se alguma das portas estiver oculta, a menos que seja uma conexão ghosted (em reconexão)
+        // Isso evita que linhas sumam se a porta de origem ou destino se tornar oculta.
+        // A interação já impede a criação/reconexão em portas ocultas.
+        if (!isGhosted && (sourcePort.isHidden || targetPort.isHidden)) return;
+
         if (isGhosted) {
             ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1 / viewState.scale;
             ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
         } else {
-            ctx.strokeStyle = isSelected ? '#5A93E4' : '#666';
+            ctx.strokeStyle = isSelected ? '#5A93E4' : (conn.data?.color || '#666'); // Cor da conexão pode ser configurada
             ctx.lineWidth = (isSelected ? 3 : 2) / viewState.scale;
             ctx.setLineDash([]);
         }
@@ -217,6 +274,22 @@ export class RenderService {
         const cp2x = p3.x - offset; const cp2y = p3.y;
         ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y); ctx.stroke();
         if (isGhosted) ctx.setLineDash([]);
+
+        // Desenha a label da conexão se houver
+        if (conn.data?.label && !isGhosted) {
+            const midX = (p0.x + p3.x) / 2;
+            const midY = (p0.y + p3.y) / 2;
+            ctx.save();
+            ctx.translate(midX, midY);
+            ctx.rotate(Math.atan2(p3.y - p0.y, p3.x - p0.x)); // Alinha o texto com a linha
+            ctx.fillStyle = '#fff';
+            ctx.font = `${10 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            // Pequeno offset para a label não sobrepor a linha
+            ctx.fillText(conn.data.label, 0, -5 / viewState.scale);
+            ctx.restore();
+        }
     }
   }
 

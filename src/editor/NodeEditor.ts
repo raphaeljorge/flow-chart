@@ -3,7 +3,8 @@ import { EventEmitter } from 'eventemitter3';
 import { 
     NodeEditorOptions, Node, Point, NodeDefinition, 
     CanvasPointerEvent, Rect, ViewState, StickyNote, 
-    Connection, NodePort, InteractiveElementType, ConfigurableItem, ConfigurableItemType
+    Connection, NodePort, InteractiveElementType, ConfigurableItem, ConfigurableItemType,
+    NodeDataVariableParseEvent
 } from '../core/Types';
 import { ALL_NODE_DEFINITIONS } from './NodeDefinitions';
 import { CanvasEngine } from '../core/CanvasEngine';
@@ -141,11 +142,18 @@ export class NodeEditor {
         this.canvasEngine.requestRender(); 
         this.events.emit('itemConfigApplied', item);
         // Se o título de um nó ou o label de uma conexão mudar, o painel de config precisa ser atualizado
-        if (item && ((item as Node).title || (item as Connection).data?.label)) {
+        // Adicionalmente, se for um nó e as portas dinâmicas mudaram, o painel precisa ser re-renderizado
+        if (item && item.hasOwnProperty('fixedInputs')) { // É um nó
+            this.configPanel?.show(item, 'node'); // Força re-render do painel de config para atualizar portas dinâmicas
+        } else if (item && ((item as Node).title || (item as Connection).data?.label)) {
             this.configPanel?.show(item, item.hasOwnProperty('sourcePortId') ? 'connection' : (item.hasOwnProperty('content') ? 'stickyNote' : 'node') );
         }
     });
     this.configPanel?.on('testNode', (node: Node) => { this.events.emit('testNodeRequested', node); });
+    // NOVO: Listener para o evento de mudança de dados com variáveis
+    this.configPanel?.on('nodeDataChangedWithVariables', (event: NodeDataVariableParseEvent) => {
+        this.nodeManager.updateNodeDataAndParseVariables(event.nodeId, event.newData, event.oldData);
+    });
     
     this.nodeManager.on('nodesUpdated', () => this.canvasEngine.requestRender());
     this.nodeManager.on('connectionsUpdated', () => this.canvasEngine.requestRender());
@@ -161,7 +169,19 @@ export class NodeEditor {
       if (vs.snapToGrid) dropPos = { x: Math.round(canvasPt.x / vs.gridSize) * vs.gridSize, y: Math.round(canvasPt.y / vs.gridSize) * vs.gridSize };
       let newItem: Node | StickyNote | null = null;
       if (def.id === 'sticky-note-def') newItem = this.stickyNoteManager.createNote(dropPos, "New Note...");
-      else newItem = this.nodeManager.createNodeFromDefinition(def, dropPos);
+      else {
+        newItem = this.nodeManager.createNodeFromDefinition(def, dropPos);
+        // Após a criação do nó, se houver dados padrão que possam conter variáveis, parseie
+        if (newItem.type === 'node' && def.config?.parameters) {
+            const initialData = {};
+            def.config.parameters.forEach(p => {
+                if (p.type === 'text' || p.type === 'code') { // Assumindo que apenas texto e código podem ter variáveis
+                    initialData[p.id] = p.defaultValue || '';
+                }
+            });
+            this.nodeManager.updateNodeDataAndParseVariables(newItem.id, initialData, {});
+        }
+      }
       if (newItem) { this.selectionManager.selectItem(newItem.id, false); this.events.emit('itemDropped', newItem); }
       this.canvasEngine.requestRender();
    };
@@ -169,8 +189,24 @@ export class NodeEditor {
   private handleCopyShortcut = (): void => {
     const ids = this.selectionManager.getSelectedItems(); if (ids.length === 0) return;
     const items = ids.map(id => {
-      const n = this.nodeManager.getNode(id); if (n) return { originalId: id, type: 'node' as 'node', data: n };
-      const sn = this.stickyNoteManager.getNote(id); if (sn) return { originalId: id, type: 'stickyNote' as 'stickyNote', data: sn };
+      const n = this.nodeManager.getNode(id); 
+      if (n) {
+          // Copia as portas dinâmicas também
+          return { 
+              originalId: id, 
+              type: 'node' as 'node', 
+              data: { 
+                  ...n, 
+                  fixedInputs: JSON.parse(JSON.stringify(n.fixedInputs)),
+                  fixedOutputs: JSON.parse(JSON.stringify(n.fixedOutputs)),
+                  dynamicInputs: JSON.parse(JSON.stringify(n.dynamicInputs)), // Clona portas dinâmicas
+                  dynamicOutputs: JSON.parse(JSON.stringify(n.dynamicOutputs)), // Clona portas dinâmicas
+                  data: JSON.parse(JSON.stringify(n.data || {})) // Clona o data
+              } 
+          };
+      }
+      const sn = this.stickyNoteManager.getNote(id); 
+      if (sn) return { originalId: id, type: 'stickyNote' as 'stickyNote', data: sn };
       return null;
     }).filter(i => i !== null && (i.type === 'node' || i.type === 'stickyNote')) as Array<{ originalId: string, type: 'node' | 'stickyNote', data: any }>;
     if (items.length > 0) { this.clipboardManager.copy(items); this.events.emit('itemsCopied', items); }
@@ -180,12 +216,46 @@ export class NodeEditor {
     if (!this.clipboardManager.canPaste()) return;
     const vs = this.canvasEngine.getViewState(); const el = this.canvasEngine.getCanvasElement();
     const cx = (el.width / 2 - vs.offset.x) / vs.scale; const cy = (el.height / 2 - vs.offset.y) / vs.scale;
-    const items = this.clipboardManager.preparePasteData({ x: cx, y: cy }); const newIds: string[] = [];
+    const items = this.clipboardManager.preparePasteData({ x: cx, y: cy }); 
+    const newIds: string[] = [];
+
     items.forEach(item => {
       const { type, data } = item; let pasted: Node | StickyNote | null = null;
-      if (type === 'node') { const d = data as Node; const def = this.options.nodeDefinitions?.find(df => df.id === d.type);
-        if (def) { pasted = this.nodeManager.createNodeFromDefinition(def, d.position); this.nodeManager.updateNode(pasted.id, { title: d.title, data: d.data||{}, status: 'unsaved', icon: d.icon, width: d.width, height: d.height }); }
-      } else if (type === 'stickyNote') { const d = data as StickyNote; pasted = this.stickyNoteManager.createNote(d.position, d.content, d.width, d.height); this.stickyNoteManager.updateNode(pasted.id, { style: d.style }); }
+      if (type === 'node') { 
+        const d = data as Node; 
+        const def = this.options.nodeDefinitions?.find(df => df.id === d.type);
+        if (def) { 
+            // Cria o nó da definição original
+            pasted = this.nodeManager.createNodeFromDefinition(def, d.position); 
+            // Atualiza o nó colado com os dados (incluindo portas dinâmicas clonadas)
+            this.nodeManager.updateNode(pasted.id, { 
+                title: d.title, 
+                data: d.data || {}, 
+                status: 'unsaved', 
+                icon: d.icon, 
+                width: d.width, 
+                height: d.height,
+                // Copia as portas dinâmicas clonadas
+                dynamicInputs: d.dynamicInputs, 
+                dynamicOutputs: d.dynamicOutputs 
+            }); 
+        } else { // Caso seja um nó genérico sem definição explícita
+             pasted = this.nodeManager.createNode(d.title, d.position, d.type, d.width, d.height);
+             this.nodeManager.updateNode(pasted.id, { 
+                ...d, 
+                id: pasted.id, // Garante que o ID é o novo
+                fixedInputs: d.fixedInputs,
+                fixedOutputs: d.fixedOutputs,
+                dynamicInputs: d.dynamicInputs, 
+                dynamicOutputs: d.dynamicOutputs,
+                data: d.data || {}
+            });
+        }
+      } else if (type === 'stickyNote') { 
+        const d = data as StickyNote; 
+        pasted = this.stickyNoteManager.createNote(d.position, d.content, d.width, d.height); 
+        this.stickyNoteManager.updateNote(pasted.id, { style: d.style }); 
+      }
       if (pasted) newIds.push(pasted.id);
     });
     if (newIds.length > 0) this.selectionManager.selectItems(newIds, false);
@@ -260,7 +330,19 @@ export class NodeEditor {
     if (vs.snapToGrid) dropPos = { x: Math.round(canvasPosition.x / vs.gridSize) * vs.gridSize, y: Math.round(canvasPosition.y / vs.gridSize) * vs.gridSize };
     let newItem: Node | StickyNote | null = null;
     if (definition.id === 'sticky-note-def') newItem = this.stickyNoteManager.createNote(dropPos, "New Note...");
-    else newItem = this.nodeManager.createNodeFromDefinition(definition, dropPos);
+    else {
+        newItem = this.nodeManager.createNodeFromDefinition(definition, dropPos);
+        // Após a criação do nó via quick add, se houver dados padrão com variáveis, parseie
+        if (newItem.type === 'node' && definition.config?.parameters) {
+            const initialData = {};
+            definition.config.parameters.forEach(p => {
+                if (p.type === 'text' || p.type === 'code') {
+                    initialData[p.id] = p.defaultValue || '';
+                }
+            });
+            this.nodeManager.updateNodeDataAndParseVariables(newItem.id, initialData, {});
+        }
+    }
     if(newItem) { this.selectionManager.selectItem(newItem.id, false); this.events.emit('itemAdded', newItem); }
     this.canvasEngine.requestRender();
   };
@@ -310,9 +392,56 @@ export class NodeEditor {
     this.nodeManager.on('nodesUpdated', () => this.canvasEngine.requestRender());
     this.nodeManager.on('connectionsUpdated', () => this.canvasEngine.requestRender());
     this.stickyNoteManager.on('notesUpdated', () => this.canvasEngine.requestRender());
-    if(this.configPanel) { this.configPanel.destroy(); this.configPanel = new ConfigPanel(this.configPanelContainer!, this.selectionManager, this.nodeManager, this.stickyNoteManager); }
+    // Reconecta o listener do ConfigPanel ao novo NodeManager
+    if(this.configPanel) { 
+        this.configPanel.destroy(); 
+        this.configPanel = new ConfigPanel(this.configPanelContainer!, this.selectionManager, this.nodeManager, this.stickyNoteManager); 
+        this.configPanel.on('nodeDataChangedWithVariables', (event: NodeDataVariableParseEvent) => {
+            this.nodeManager.updateNodeDataAndParseVariables(event.nodeId, event.newData, event.oldData);
+        });
+        this.configPanel.on('configApplied', (item: ConfigurableItem) => { 
+            this.canvasEngine.requestRender(); 
+            this.events.emit('itemConfigApplied', item);
+            if (item && item.hasOwnProperty('fixedInputs')) {
+                this.configPanel?.show(item, 'node'); 
+            } else if (item && ((item as Node).title || (item as Connection).data?.label)) {
+                this.configPanel?.show(item, item.hasOwnProperty('sourcePortId') ? 'connection' : (item.hasOwnProperty('content') ? 'stickyNote' : 'node') );
+            }
+        });
+        this.configPanel.on('testNode', (node: Node) => { this.events.emit('testNodeRequested', node); });
+    }
 
-    if(data.nodes) { data.nodes.forEach(nd => { const def = this.options.nodeDefinitions?.find(d => d.id === nd.type); if (def) { const n = this.nodeManager.createNodeFromDefinition(def, nd.position); this.nodeManager.updateNode(n.id, { ...nd, id: n.id, inputs: n.inputs, outputs: n.outputs, config: def.config }); } else { const gn = this.nodeManager.createNode(nd.title, nd.position, nd.type, nd.width, nd.height); this.nodeManager.updateNode(gn.id, {...nd, id: gn.id}); } });}
+
+    if(data.nodes) { 
+        data.nodes.forEach(nd => { 
+            const def = this.options.nodeDefinitions?.find(d => d.id === nd.type); 
+            let createdNode: Node;
+            if (def) { 
+                // Cria com base na definição, mas depois sobrescreve com dados do save
+                createdNode = this.nodeManager.createNodeFromDefinition(def, nd.position); 
+                this.nodeManager.updateNode(createdNode.id, { 
+                    ...nd, 
+                    id: createdNode.id, // Mantém o novo ID gerado
+                    fixedInputs: nd.fixedInputs || [], // Carrega portas fixas do save
+                    fixedOutputs: nd.fixedOutputs || [], // Carrega portas fixas do save
+                    dynamicInputs: nd.dynamicInputs || [], // Carrega portas dinâmicas do save
+                    dynamicOutputs: nd.dynamicOutputs || [], // Carrega portas dinâmicas do save
+                    config: def.config 
+                }); 
+            } else { 
+                // Cria nó genérico e carrega tudo do save
+                createdNode = this.nodeManager.createNode(nd.title, nd.position, nd.type, nd.width, nd.height); 
+                this.nodeManager.updateNode(createdNode.id, {
+                    ...nd, 
+                    id: createdNode.id,
+                    fixedInputs: nd.fixedInputs || [],
+                    fixedOutputs: nd.fixedOutputs || [],
+                    dynamicInputs: nd.dynamicInputs || [],
+                    dynamicOutputs: nd.dynamicOutputs || [],
+                }); 
+            } 
+        });
+    }
     if(data.stickyNotes) { data.stickyNotes.forEach(nd => { const n = this.stickyNoteManager.createNote(nd.position, nd.content, nd.width, nd.height); this.stickyNoteManager.updateNote(n.id, {...nd, id: n.id}); });}
     if(data.connections) { data.connections.forEach(cd => { const conn = this.nodeManager.createConnection(cd.sourcePortId, cd.targetPortId); if(conn && cd.data) this.nodeManager.updateConnection(conn.id, {data: cd.data}); });}
     if(data.viewState) this.canvasEngine.setViewState(data.viewState); else this.zoomToFitContent();
@@ -321,7 +450,15 @@ export class NodeEditor {
 
    public saveGraph(): any {
        return {
-          nodes: this.nodeManager.getNodes().map(n => ({...n, data: n.data ? {...n.data} : undefined, inputs: n.inputs.map(p=>({...p})), outputs: n.outputs.map(p=>({...p}))})), 
+          nodes: this.nodeManager.getNodes().map(n => ({
+              ...n, 
+              data: n.data ? {...n.data} : undefined, 
+              // Garante que portas fixas e dinâmicas sejam salvas
+              fixedInputs: n.fixedInputs.map(p=>({...p})), 
+              fixedOutputs: n.fixedOutputs.map(p=>({...p})),
+              dynamicInputs: n.dynamicInputs.map(p=>({...p})), 
+              dynamicOutputs: n.dynamicOutputs.map(p=>({...p}))
+          })), 
           stickyNotes: this.stickyNoteManager.getNotes().map(sn => ({...sn, style: {...sn.style}})),
           connections: this.nodeManager.getConnections().map(c => ({...c, data: c.data ? {...c.data} : undefined })),
           viewState: {...this.canvasEngine.getViewState(), offset: {...this.canvasEngine.getViewState().offset}},

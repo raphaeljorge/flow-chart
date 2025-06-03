@@ -12,6 +12,11 @@ export class StickyNoteManager {
   }
 
   public createNote(position: Point, content: string = '', width: number = 200, height: number = 150): StickyNote {
+    console.log(`[StickyNoteManager.createNote] Attempting to create note at pos: (${position.x}, ${position.y}), size: <span class="math-inline">\{width\}x</span>{height}`);
+    if (isNaN(position.x) || isNaN(position.y) || isNaN(width) || isNaN(height)) {
+        console.error("[StickyNoteManager.createNote] ERROR: Detected NaN in creation parameters!");
+    }
+
     const note: StickyNote = {
       id: nanoid(),
       content,
@@ -19,9 +24,9 @@ export class StickyNoteManager {
       width,
       height,
       style: {
-        backgroundColor: '#2a2a2a', //
-        textColor: '#ffffff', //
-        fontSize: 14, //
+        backgroundColor: '#2a2a2a',
+        textColor: '#ffffff',
+        fontSize: 14,
       },
     };
 

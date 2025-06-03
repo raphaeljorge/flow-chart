@@ -1,7 +1,7 @@
 // src/ui/ContextMenu.ts
 import { EventEmitter } from 'eventemitter3';
 import { Point } from '../core/Types';
-// import { IconService } from '../editor/IconService'; // Para ícones nos itens do menu
+import { IconService } from '../editor/IconService'; // Importar IconService
 
 export interface ContextMenuItemAction {
   id: string; // ID da ação, ex: 'add-node', 'delete-selected'
@@ -25,7 +25,7 @@ export class ContextMenu {
 
   constructor(
     private container: HTMLElement, // Onde o menu será anexado (geralmente o container do editor ou document.body)
-    /* private iconService: IconService */
+    private iconService: IconService // Injetar IconService aqui
   ) {
     this.events = new EventEmitter();
     this.setupGlobalClickListener();
@@ -60,9 +60,8 @@ export class ContextMenu {
       }
       
       let iconHTML = '';
-      if (itemDef.iconClass /* && this.iconService */) {
-        // iconHTML = this.iconService.getIconHTML(itemDef.iconClass, {className: 'menu-item-icon'});
-        iconHTML = `<i class="ph ${itemDef.iconClass} menu-item-icon"></i>`; // Placeholder
+      if (itemDef.iconClass) { // Usar IconService
+        iconHTML = this.iconService.getIconHTML(itemDef.iconClass, { className: 'menu-item-icon' });
       }
 
       itemElement.innerHTML = `${iconHTML}<span>${itemDef.label}</span>`;
@@ -88,23 +87,19 @@ export class ContextMenu {
     if (this.menuElement) {
       this.menuElement.style.display = 'none';
       this.events.emit('hidden');
-      // Opcional: remover o elemento do DOM se não for reutilizado frequentemente
-      // this.menuElement.remove();
-      // this.menuElement = null;
     }
     this.currentContext = null;
   }
 
   private setupGlobalClickListener(): void {
     // Adiciona um listener para fechar o menu ao clicar fora
-    // Pode ser no window ou no container do editor
     document.addEventListener('click', (e) => {
       if (this.menuElement && this.menuElement.style.display === 'block') {
         if (!this.menuElement.contains(e.target as Node)) {
           this.hide();
         }
       }
-    }, true); // Use capturing para pegar o clique antes que um item do menu o consuma (se necessário)
+    }, true);
   }
   
   public on(event: string, listener: (...args: any[]) => void): this {
@@ -115,7 +110,6 @@ export class ContextMenu {
   public destroy(): void {
     this.menuElement?.remove();
     this.events.removeAllListeners();
-    // Remover global click listener se foi adicionado ao document/window
-    // document.removeEventListener('click', ...) 
+    document.removeEventListener('click', this.setupGlobalClickListener as EventListenerOrEventListenerObject, true); // Remover o listener global
   }
 }
