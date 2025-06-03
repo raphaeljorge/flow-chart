@@ -4,4 +4,4 @@ import { NodePalette } from '../core/NodePalette';
 import { NodeEditor } from './NodeEditor';
 
 export { Canvas, NodeManager, NodePalette, NodeEditor };
-export * from '../core/types';
+export * from '../core/Types';

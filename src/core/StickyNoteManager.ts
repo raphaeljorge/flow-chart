@@ -1,227 +1,122 @@
 import { nanoid } from 'nanoid';
 import { EventEmitter } from 'eventemitter3';
-import { Point, StickyNote } from './types';
+import { Point, StickyNote, Rect } from './Types';
 
 export class StickyNoteManager {
-  private notes: Map<string, StickyNote> = new Map();
-  private events: EventEmitter = new EventEmitter();
-  private selectedNote: string | null = null;
-  private isDragging: boolean = false;
-  private isResizing: boolean = false;
-  private dragStartPos: Point | null = null;
-  private noteStartPos: Point | null = null;
-  private noteStartDimensions: { width: number; height: number } | null = null;
-  private resizeHandle: string = '';
+  private notes: Map<string, StickyNote>;
+  private events: EventEmitter;
 
-  constructor() {}
+  constructor() {
+    this.notes = new Map<string, StickyNote>();
+    this.events = new EventEmitter();
+  }
 
-  public createNote(position: Point): StickyNote {
+  public createNote(position: Point, content: string = '', width: number = 200, height: number = 150): StickyNote {
     const note: StickyNote = {
       id: nanoid(),
-      content: '',
+      content,
       position,
-      width: 200,
-      height: 150,
+      width,
+      height,
       style: {
-        backgroundColor: '#2a2a2a',
-        textColor: '#ffffff',
-        fontSize: 14
-      }
+        backgroundColor: '#2a2a2a', //
+        textColor: '#ffffff', //
+        fontSize: 14, //
+      },
     };
 
     this.notes.set(note.id, note);
     this.emitNotesUpdated();
+    this.events.emit('noteCreated', note);
     return note;
   }
 
-  public startDrag(noteId: string, point: Point) {
-    const note = this.notes.get(noteId);
-    if (!note) return;
-
-    this.isDragging = true;
-    this.dragStartPos = point;
-    this.noteStartPos = { ...note.position };
-    this.selectNote(noteId);
-  }
-
-  public startResize(noteId: string, point: Point, handle: string) {
-    const note = this.notes.get(noteId);
-    if (!note) return;
-
-    this.isResizing = true;
-    this.resizeHandle = handle;
-    this.dragStartPos = point;
-    this.noteStartDimensions = {
-      width: note.width,
-      height: note.height
-    };
-    this.noteStartPos = { ...note.position };
-    this.selectNote(noteId);
-  }
-
-  public handleDrag(point: Point) {
-    if (!this.isDragging || !this.dragStartPos || !this.noteStartPos || !this.selectedNote) return;
-
-    const note = this.notes.get(this.selectedNote);
-    if (!note) return;
-
-    const dx = point.x - this.dragStartPos.x;
-    const dy = point.y - this.dragStartPos.y;
-
-    note.position = {
-      x: this.noteStartPos.x + dx,
-      y: this.noteStartPos.y + dy
-    };
-
-    this.emitNotesUpdated();
-  }
-
-  public handleResize(point: Point) {
-    if (!this.isResizing || !this.dragStartPos || !this.noteStartDimensions || !this.noteStartPos || !this.selectedNote) return;
-
-    const note = this.notes.get(this.selectedNote);
-    if (!note) return;
-
-    const dx = point.x - this.dragStartPos.x;
-    const dy = point.y - this.dragStartPos.y;
-
-    switch (this.resizeHandle) {
-      case 'e':
-        note.width = Math.max(100, this.noteStartDimensions.width + dx);
-        break;
-      case 'w':
-        const deltaW = Math.min(dx, this.noteStartDimensions.width - 100);
-        note.width = Math.max(100, this.noteStartDimensions.width - deltaW);
-        note.position.x = this.noteStartPos.x + deltaW;
-        break;
-      case 's':
-        note.height = Math.max(100, this.noteStartDimensions.height + dy);
-        break;
-      case 'n':
-        const deltaH = Math.min(dy, this.noteStartDimensions.height - 100);
-        note.height = Math.max(100, this.noteStartDimensions.height - deltaH);
-        note.position.y = this.noteStartPos.y + deltaH;
-        break;
-      case 'se':
-        note.width = Math.max(100, this.noteStartDimensions.width + dx);
-        note.height = Math.max(100, this.noteStartDimensions.height + dy);
-        break;
-      case 'sw':
-        note.height = Math.max(100, this.noteStartDimensions.height + dy);
-        const deltaSW = Math.min(dx, this.noteStartDimensions.width - 100);
-        note.width = Math.max(100, this.noteStartDimensions.width - deltaSW);
-        note.position.x = this.noteStartPos.x + deltaSW;
-        break;
-      case 'ne':
-        note.width = Math.max(100, this.noteStartDimensions.width + dx);
-        const deltaNE = Math.min(dy, this.noteStartDimensions.height - 100);
-        note.height = Math.max(100, this.noteStartDimensions.height - deltaNE);
-        note.position.y = this.noteStartPos.y + deltaNE;
-        break;
-      case 'nw':
-        const deltaNW_W = Math.min(dx, this.noteStartDimensions.width - 100);
-        const deltaNW_H = Math.min(dy, this.noteStartDimensions.height - 100);
-        note.width = Math.max(100, this.noteStartDimensions.width - deltaNW_W);
-        note.height = Math.max(100, this.noteStartDimensions.height - deltaNW_H);
-        note.position.x = this.noteStartPos.x + deltaNW_W;
-        note.position.y = this.noteStartPos.y + deltaNW_H;
-        break;
-    }
-
-    this.emitNotesUpdated();
-  }
-
-  public stopDragAndResize() {
-    this.isDragging = false;
-    this.isResizing = false;
-    this.dragStartPos = null;
-    this.noteStartPos = null;
-    this.noteStartDimensions = null;
-    this.resizeHandle = '';
-  }
-
-  public updateNote(noteId: string, updates: Partial<StickyNote>) {
-    const note = this.notes.get(noteId);
-    if (note) {
-      Object.assign(note, updates);
-      this.emitNotesUpdated();
-    }
-  }
-
-  public updateNoteStyle(noteId: string, style: Partial<StickyNote['style']>) {
-    const note = this.notes.get(noteId);
-    if (note) {
-      note.style = { ...note.style, ...style };
-      this.emitNotesUpdated();
-    }
-  }
-
-  public updateNoteContent(noteId: string, content: string) {
-    const note = this.notes.get(noteId);
-    if (note) {
-      note.content = content;
-      this.emitNotesUpdated();
-    }
-  }
-
-  public deleteNote(noteId: string) {
-    this.notes.delete(noteId);
-    if (this.selectedNote === noteId) {
-      this.selectedNote = null;
-    }
-    this.emitNotesUpdated();
-  }
-
-  public selectNote(noteId: string | null) {
-    this.selectedNote = noteId;
-    this.events.emit('selectionChanged', noteId);
-  }
-
-  public getSelectedNote(): StickyNote | null {
-    if (!this.selectedNote) return null;
-    return this.notes.get(this.selectedNote) || null;
+  public getNote(noteId: string): StickyNote | undefined {
+    return this.notes.get(noteId);
   }
 
   public getNotes(): StickyNote[] {
     return Array.from(this.notes.values());
   }
 
-  public findNoteAtPoint(point: Point): { note: StickyNote; region: string } | null {
-    const resizeHandleSize = 8;
-    
-    for (const note of this.notes.values()) {
-      if (
-        point.x >= note.position.x &&
-        point.x <= note.position.x + note.width &&
-        point.y >= note.position.y &&
-        point.y <= note.position.y + note.height
-      ) {
-        // Check resize handles
-        const isNearTop = Math.abs(point.y - note.position.y) <= resizeHandleSize;
-        const isNearBottom = Math.abs(point.y - (note.position.y + note.height)) <= resizeHandleSize;
-        const isNearLeft = Math.abs(point.x - note.position.x) <= resizeHandleSize;
-        const isNearRight = Math.abs(point.x - (note.position.x + note.width)) <= resizeHandleSize;
-
-        if (isNearTop && isNearLeft) return { note, region: 'nw' };
-        if (isNearTop && isNearRight) return { note, region: 'ne' };
-        if (isNearBottom && isNearLeft) return { note, region: 'sw' };
-        if (isNearBottom && isNearRight) return { note, region: 'se' };
-        if (isNearTop) return { note, region: 'n' };
-        if (isNearBottom) return { note, region: 's' };
-        if (isNearLeft) return { note, region: 'w' };
-        if (isNearRight) return { note, region: 'e' };
-
-        return { note, region: 'body' };
+  public updateNote(noteId: string, updates: Partial<Omit<StickyNote, 'id'>>): void {
+    const note = this.notes.get(noteId);
+    if (note) {
+      // Tratar a atualização de 'style' separadamente para mesclar
+      if (updates.style) {
+        note.style = { ...note.style, ...updates.style };
+        delete updates.style; // Remove para não sobrescrever o objeto 'style' inteiro abaixo
       }
+      Object.assign(note, updates);
+      this.emitNotesUpdated();
+      this.events.emit('noteUpdated', note);
     }
-    return null;
+  }
+  
+  public updateNoteContent(noteId: string, content: string): void {
+    const note = this.notes.get(noteId);
+    if (note) {
+        note.content = content;
+        this.emitNotesUpdated();
+        this.events.emit('noteUpdated', note); // Ou um evento 'noteContentChanged'
+    }
   }
 
-  private emitNotesUpdated() {
+  public updateNoteStyle(noteId: string, styleUpdates: Partial<StickyNote['style']>): void {
+    const note = this.notes.get(noteId);
+    if (note) {
+      note.style = { ...note.style, ...styleUpdates };
+      this.emitNotesUpdated();
+      this.events.emit('noteUpdated', note); // Ou um evento 'noteStyleChanged'
+    }
+  }
+  
+  // Método para InteractionManager atualizar posição e dimensões
+  public updateNoteRect(noteId: string, newRect: Rect): void {
+    const note = this.notes.get(noteId);
+    if (note) {
+      note.position.x = newRect.x;
+      note.position.y = newRect.y;
+      note.width = newRect.width;
+      note.height = newRect.height;
+      this.emitNotesUpdated();
+      this.events.emit('noteUpdated', note); // Ou 'noteMovedResized'
+    }
+  }
+
+
+  public deleteNote(noteId: string): void {
+    const note = this.notes.get(noteId);
+    if (note) {
+      this.notes.delete(noteId);
+      this.emitNotesUpdated();
+      this.events.emit('noteDeleted', note);
+    }
+  }
+  
+  public deleteNotes(noteIds: string[]): void {
+    noteIds.forEach(id => this.deleteNote(id));
+    // O evento 'notesUpdated' já é emitido por deleteNote.
+    // Se uma notificação em lote for necessária, pode ser adicionada aqui.
+  }
+
+
+  private emitNotesUpdated(): void {
     this.events.emit('notesUpdated', this.getNotes());
   }
 
-  public on(event: string, callback: (...args: any[]) => void) {
-    this.events.on(event, callback);
+  public on(event: string, listener: (...args: any[]) => void): this {
+    this.events.on(event, listener);
+    return this;
+  }
+
+  public off(event: string, listener: (...args: any[]) => void): this {
+    this.events.off(event, listener);
+    return this;
+  }
+  
+  public destroy(): void {
+      this.notes.clear();
+      this.events.removeAllListeners();
   }
 }

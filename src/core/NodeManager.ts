@@ -1,193 +1,147 @@
+// src/core/NodeManager.ts
 import { nanoid } from 'nanoid';
 import { EventEmitter } from 'eventemitter3';
-import { Node, NodePort, Connection, Point } from './types';
+import { Node, NodePort, Connection, Point, Rect, NodeDefinition } from './Types';
 
 export class NodeManager {
-  private nodes: Map<string, Node> = new Map();
-  private connections: Map<string, Connection> = new Map();
-  private events: EventEmitter = new EventEmitter();
-  private selectedNodes: Set<string> = new Set();
-  private clipboard: Node[] = [];
+  private nodes: Map<string, Node>;
+  private connections: Map<string, Connection>;
+  private events: EventEmitter;
 
-  constructor() {}
+  constructor() {
+    this.nodes = new Map<string, Node>();
+    this.connections = new Map<string, Connection>();
+    this.events = new EventEmitter();
+  }
 
-  public createNode(title: string, position: Point): Node {
-    const node: Node = {
-      id: nanoid(),
-      title,
-      position,
-      width: 200,
-      height: 100,
-      inputs: [],
-      outputs: []
+  public createNodeFromDefinition(definition: NodeDefinition, position: Point): Node {
+    const newNode: Node = {
+      id: nanoid(), title: definition.title, type: definition.id, description: definition.description,
+      position, width: definition.defaultWidth || 200, height: definition.defaultHeight || 100,
+      inputs: [], outputs: [], data: {}, status: 'unsaved', icon: definition.icon,
+      config: definition.config, minWidth: definition.minWidth || 100, minHeight: definition.minHeight || 50,
     };
-
+    (definition.defaultInputs || []).forEach(inputDef => this.addPort(newNode.id, 'input', inputDef.name, inputDef.description, inputDef.maxConnections));
+    (definition.defaultOutputs || []).forEach(outputDef => this.addPort(newNode.id, 'output', outputDef.name, outputDef.description, outputDef.maxConnections));
+    this.nodes.set(newNode.id, newNode);
+    this.emitNodesUpdated(); this.events.emit('nodeCreated', newNode);
+    return newNode;
+  }
+  
+  public createNode(title: string, position: Point, type: string = 'default', width: number = 200, height: number = 100): Node {
+    const node: Node = { id: nanoid(), title, type, position, width, height, inputs: [], outputs: [], data: {}, status: 'unsaved' };
     this.nodes.set(node.id, node);
-    this.emitNodesUpdated();
+    this.emitNodesUpdated(); this.events.emit('nodeCreated', node);
     return node;
   }
 
-  public addPort(nodeId: string, type: 'input' | 'output', name: string): NodePort {
+  public getNode(nodeId: string): Node | undefined { return this.nodes.get(nodeId); }
+  public getNodes(): Node[] { return Array.from(this.nodes.values()); }
+
+  public updateNode(nodeId: string, updates: Partial<Omit<Node, 'id' | 'inputs' | 'outputs'>>): void {
     const node = this.nodes.get(nodeId);
-    if (!node) throw new Error('Node not found');
-
-    const port: NodePort = {
-      id: nanoid(),
-      type,
-      name,
-      nodeId,
-      position: { x: 0, y: 0 },
-      connections: []
-    };
-
-    if (type === 'input') {
-      node.inputs.push(port);
-    } else {
-      node.outputs.push(port);
-    }
-
-    this.emitNodesUpdated();
-    return port;
+    if (node) { Object.assign(node, updates); this.emitNodesUpdated(); this.events.emit('nodeUpdated', node); }
+  }
+  
+  public moveNode(nodeId: string, position: Point): void {
+    const node = this.nodes.get(nodeId);
+    if (node) { node.position = position; this.emitNodesUpdated(); this.events.emit('nodeMoved', node); }
   }
 
-  public connect(sourcePortId: string, targetPortId: string): Connection {
-    const sourcePort = this.findPort(sourcePortId);
-    const targetPort = this.findPort(targetPortId);
+  public resizeNode(nodeId: string, newRect: Rect): void {
+    const node = this.nodes.get(nodeId);
+    if (node) { node.position.x = newRect.x; node.position.y = newRect.y; node.width = newRect.width; node.height = newRect.height;
+      this.emitNodesUpdated(); this.events.emit('nodeResized', node); }
+  }
 
-    if (!sourcePort || !targetPort) {
-      throw new Error('Port not found');
+  public deleteNode(nodeId: string): void {
+    const node = this.nodes.get(nodeId);
+    if (node) {
+      const connectionsToRemove = Array.from(this.connections.values()).filter(conn => conn.sourceNodeId === nodeId || conn.targetNodeId === nodeId);
+      connectionsToRemove.forEach(conn => this.deleteConnection(conn.id));
+      this.nodes.delete(nodeId);
+      this.emitNodesUpdated(); this.events.emit('nodeDeleted', node);
     }
+  }
+  
+  public deleteNodes(nodeIds: string[]): void { nodeIds.forEach(id => this.deleteNode(id)); }
 
-    if (sourcePort.type !== 'output' || targetPort.type !== 'input') {
-      throw new Error('Invalid connection types');
+  public addPort(nodeId: string, type: 'input' | 'output', name: string, description?: string, maxConnections?: number): NodePort | null {
+    const node = this.nodes.get(nodeId); if (!node) { console.error(`Node not found: ${nodeId}`); return null; }
+    const port: NodePort = { id: nanoid(), type, name, nodeId, position: { x: 0, y: 0 }, connections: [], description, maxConnections: maxConnections === undefined ? (type === 'input' ? 1 : Infinity) : maxConnections };
+    if (type === 'input') node.inputs.push(port); else node.outputs.push(port);
+    this.emitNodesUpdated(); this.events.emit('portAdded', node, port);
+    return port;
+  }
+  
+  public getPort(portId: string): NodePort | undefined {
+    for (const node of this.nodes.values()) { const port = [...node.inputs, ...node.outputs].find(p => p.id === portId); if (port) return port; } return undefined;
+  }
+  
+  public removePort(portId: string): void {
+    for (const node of this.nodes.values()) {
+        const inputIdx = node.inputs.findIndex(p => p.id === portId);
+        if (inputIdx !== -1) { const removed = node.inputs.splice(inputIdx, 1)[0]; this.cleanupPortConnections(removed); this.emitNodesUpdated(); this.events.emit('portRemoved', node, removed); return; }
+        const outputIdx = node.outputs.findIndex(p => p.id === portId);
+        if (outputIdx !== -1) { const removed = node.outputs.splice(outputIdx, 1)[0]; this.cleanupPortConnections(removed); this.emitNodesUpdated(); this.events.emit('portRemoved', node, removed); return; }
     }
+  }
+
+  private cleanupPortConnections(port: NodePort): void { port.connections.forEach(connId => { const conn = this.connections.get(connId); if (conn) this.deleteConnection(connId); }); }
+
+  public createConnection(sourcePortId: string, targetPortId: string): Connection | null {
+    const sourcePort = this.getPort(sourcePortId); const targetPort = this.getPort(targetPortId);
+    if (!sourcePort || !targetPort) { console.error('Source or target port not found.'); return null; }
+    if (sourcePort.nodeId === targetPort.nodeId) { console.warn('Cannot connect a node to itself.'); return null; }
+    if (sourcePort.type !== 'output' || targetPort.type !== 'input') { console.error('Invalid connection: Must connect output to input.'); return null; }
+    if (targetPort.connections.length >= (targetPort.maxConnections ?? 1)) { console.warn(`Target port ${targetPort.name} max connections reached.`); return null; }
+    if (sourcePort.connections.length >= (sourcePort.maxConnections ?? Infinity)) { console.warn(`Source port ${sourcePort.name} max connections reached.`); return null; }
+    const existing = Array.from(this.connections.values()).find(c => c.sourcePortId === sourcePortId && c.targetPortId === targetPortId);
+    if (existing) { console.warn('Connection already exists.'); return null; }
 
     const connection: Connection = {
-      id: nanoid(),
-      sourcePortId,
-      targetPortId,
-      sourceNode: sourcePort.nodeId,
-      targetNode: targetPort.nodeId
+      id: nanoid(), sourcePortId, targetPortId,
+      sourceNodeId: sourcePort.nodeId, targetNodeId: targetPort.nodeId,
+      data: { label: '' }, // Inicializa 'data' para conexões
     };
-
     this.connections.set(connection.id, connection);
-    sourcePort.connections.push(connection.id);
-    targetPort.connections.push(connection.id);
-
-    this.emitNodesUpdated();
+    sourcePort.connections.push(connection.id); targetPort.connections.push(connection.id);
+    this.emitConnectionsUpdated(); this.events.emit('connectionCreated', connection);
     return connection;
   }
 
-  public moveNode(nodeId: string, position: Point) {
-    const node = this.nodes.get(nodeId);
-    if (node) {
-      node.position = position;
-      this.emitNodesUpdated();
+  public getConnection(connectionId: string): Connection | undefined { return this.connections.get(connectionId); }
+  public getConnections(): Connection[] { return Array.from(this.connections.values()); }
+
+  public deleteConnection(connectionId: string): void {
+    const connection = this.connections.get(connectionId);
+    if (connection) {
+      const sourcePort = this.getPort(connection.sourcePortId); const targetPort = this.getPort(connection.targetPortId);
+      if (sourcePort) sourcePort.connections = sourcePort.connections.filter(id => id !== connectionId);
+      if (targetPort) targetPort.connections = targetPort.connections.filter(id => id !== connectionId);
+      this.connections.delete(connectionId);
+      this.emitConnectionsUpdated(); this.events.emit('connectionDeleted', connection);
+    }
+  }
+  
+  public getConnectionsForNode(nodeId: string): Connection[] {
+    return Array.from(this.connections.values()).filter(conn => conn.sourceNodeId === nodeId || conn.targetNodeId === nodeId);
+  }
+
+  // Novo: Método para atualizar dados de uma conexão
+  public updateConnection(connectionId: string, updates: Partial<Omit<Connection, 'id' | 'sourcePortId' | 'targetPortId' | 'sourceNodeId' | 'targetNodeId'>>): void {
+    const connection = this.connections.get(connectionId);
+    if (connection) {
+      Object.assign(connection, updates);
+      // Se 'data' for atualizado, Object.assign lida com a mesclagem se 'updates.data' for um objeto
+      this.emitConnectionsUpdated();
+      this.events.emit('connectionUpdated', connection);
     }
   }
 
-  public selectNode(nodeId: string, addToSelection = false) {
-    if (!addToSelection) {
-      this.selectedNodes.clear();
-    }
-    this.selectedNodes.add(nodeId);
-    this.events.emit('selectionChanged', Array.from(this.selectedNodes));
-    this.emitNodesUpdated();
-  }
-
-  public deselectNode(nodeId: string) {
-    this.selectedNodes.delete(nodeId);
-    this.events.emit('selectionChanged', Array.from(this.selectedNodes));
-    this.emitNodesUpdated();
-  }
-
-  public deselectAll() {
-    this.selectedNodes.clear();
-    this.events.emit('selectionChanged', []);
-    this.emitNodesUpdated();
-  }
-
-  public isSelected(nodeId: string): boolean {
-    return this.selectedNodes.has(nodeId);
-  }
-
-  public getSelectedNodes(): Node[] {
-    return Array.from(this.selectedNodes).map(id => this.nodes.get(id)!);
-  }
-
-  public copySelectedNodes() {
-    this.clipboard = this.getSelectedNodes().map(node => ({
-      ...node,
-      id: nanoid(),
-      position: { ...node.position }
-    }));
-  }
-
-  public pasteNodes() {
-    if (this.clipboard.length === 0) return;
-
-    const offset = { x: 20, y: 20 };
-    
-    const newNodes = this.clipboard.map(node => ({
-      ...node,
-      id: nanoid(),
-      position: {
-        x: node.position.x + offset.x,
-        y: node.position.y + offset.y
-      }
-    }));
-
-    this.selectedNodes.clear();
-    newNodes.forEach(node => {
-      this.nodes.set(node.id, node);
-      this.selectedNodes.add(node.id);
-    });
-
-    this.emitNodesUpdated();
-    this.events.emit('selectionChanged', Array.from(this.selectedNodes));
-  }
-
-  public deleteSelectedNodes() {
-    const nodesToDelete = this.getSelectedNodes();
-    
-    nodesToDelete.forEach(node => {
-      // Delete associated connections
-      [...node.inputs, ...node.outputs].forEach(port => {
-        port.connections.forEach(connectionId => {
-          this.connections.delete(connectionId);
-        });
-      });
-      
-      this.nodes.delete(node.id);
-    });
-
-    this.selectedNodes.clear();
-    this.emitNodesUpdated();
-    this.events.emit('nodesDeleted', nodesToDelete);
-    this.events.emit('selectionChanged', []);
-  }
-
-  private findPort(portId: string): NodePort | undefined {
-    for (const node of this.nodes.values()) {
-      const port = [...node.inputs, ...node.outputs].find(p => p.id === portId);
-      if (port) return port;
-    }
-    return undefined;
-  }
-
-  private emitNodesUpdated() {
-    this.events.emit('nodesUpdated', Array.from(this.nodes.values()));
-  }
-
-  public getNodes(): Node[] {
-    return Array.from(this.nodes.values());
-  }
-
-  public getConnections(): Connection[] {
-    return Array.from(this.connections.values());
-  }
-
-  public on(event: string, callback: (...args: any[]) => void) {
-    this.events.on(event, callback);
-  }
+  private emitNodesUpdated(): void { this.events.emit('nodesUpdated', this.getNodes()); }
+  private emitConnectionsUpdated(): void { this.events.emit('connectionsUpdated', this.getConnections()); }
+  public on(event: string, listener: (...args: any[]) => void): this { this.events.on(event, listener); return this; }
+  public off(event: string, listener: (...args: any[]) => void): this { this.events.off(event, listener); return this; }
+  public destroy(): void { this.nodes.clear(); this.connections.clear(); this.events.removeAllListeners(); }
 }

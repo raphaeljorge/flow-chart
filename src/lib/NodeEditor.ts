@@ -3,7 +3,7 @@ import { NodeManager } from '../core/NodeManager';
 import { NodePalette } from '../core/NodePalette';
 import { ConfigPanel } from '../core/ConfigPanel';
 import { StickyNoteManager } from '../core/StickyNoteManager';
-import { NodeEditorOptions, Node, Point } from '../core/types';
+import { NodeEditorOptions, Node, Point } from '../core/Types';
 
 export class NodeEditor {
   private canvas: Canvas;
