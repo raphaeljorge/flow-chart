@@ -510,32 +510,36 @@ export class ConfigPanel {
         const node = this.currentItem as Node;
         // Lógica de atualização para parâmetros de porta dinâmica
         if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-name')) {
-            const portId = param.id.split('-')[2];
-            this.nodeManager.updatePort(portId, { variableName: value, name: value }); // Atualiza nome e variableName
+          const portId = param.id.split('-')[2];
+          this.nodeManager.updatePort(portId, { variableName: value, name: value });
         } else if (param.id.startsWith('dynamic-input-') && param.id.endsWith('-hidden')) {
-            const portId = param.id.split('-')[2];
-            this.nodeManager.updatePort(portId, { isHidden: value });
+          const portId = param.id.split('-')[2];
+          this.nodeManager.updatePort(portId, { isHidden: value });
+          const nodeToUpdate = this.currentItem as Node;
+          const portInNodeArray = nodeToUpdate.dynamicInputs.find(p => p.id === portId);
+          if (portInNodeArray) {
+              portInNodeArray.isHidden = value;
+          }
         } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-name')) {
-            const portId = param.id.split('-')[2];
-            this.nodeManager.updatePort(portId, { name: value });
-        } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-value')) {
-            const portId = param.id.split('-')[2];
-            this.nodeManager.updatePort(portId, { outputValue: value });
-        } else { // Parâmetros de 'data' do nó
-            const oldData = JSON.parse(JSON.stringify(node.data || {})); // Clona o data antigo
-            node.data = node.data || {};
-            node.data[param.id] = value;
-            // Emite evento para que o NodeEditor/NodeManager possa parsear variáveis
-            this.events.emit('nodeDataChangedWithVariables', { nodeId: node.id, oldData: oldData, newData: node.data });
-        }
-        this.nodeManager.updateNode(this.currentItem.id, { status: 'unsaved' }); // Marca como não salvo
+          const portId = param.id.split('-')[2];
+          this.nodeManager.updatePort(portId, { name: value });
+      } else if (param.id.startsWith('dynamic-output-') && param.id.endsWith('-value')) {
+          const portId = param.id.split('-')[2];
+          this.nodeManager.updatePort(portId, { outputValue: value });
+      } else {
+          const oldData = JSON.parse(JSON.stringify(node.data || {}));
+          node.data = node.data || {};
+          node.data[param.id] = value;
+          this.events.emit('nodeDataChangedWithVariables', { nodeId: node.id, oldData: oldData, newData: node.data });
+      }
+      this.nodeManager.updateNode(this.currentItem.id, { status: 'unsaved' });
     } else if (this.currentItemType === 'stickyNote') {
-        const note = this.currentItem as StickyNote;
-        const styleKey = param.id as keyof StickyNote['style'];
-        if (styleKey in note.style) {
-            const styleUpdates = { ...note.style, [styleKey]: value };
-            this.stickyNoteManager.updateNote(this.currentItem.id, { style: styleUpdates });
-        }
+      const note = this.currentItem as StickyNote;
+      const styleKey = param.id as keyof StickyNote['style'];
+      if (styleKey in note.style) {
+          const styleUpdates = { ...note.style, [styleKey]: value };
+          this.stickyNoteManager.updateNote(this.currentItem.id, { style: styleUpdates });
+      }
     } else if (this.currentItemType === 'connection') {
         const conn = this.currentItem as Connection;
         conn.data = conn.data || {};

@@ -605,8 +605,9 @@ export class InteractionManager {
 
   private getResizeHandleForSelectedItem(point: Point, item: DraggableItem, viewState: ViewState): ResizeHandle | null {
     const handleVisualSize = 8; const handleHitRadius = handleVisualSize / viewState.scale; 
-    const { x, y, width, height } = item.position;
-    const handlesDef: { type: ResixwzeHandle['type'], x: number, y: number }[] = [
+    const { x, y } = item.position;
+    const { width, height } = item;
+    const handlesDef: { type: ResizeHandle['type'], x: number, y: number }[] = [
         { type: 'nw', x: x, y: y }, { type: 'n', x: x + width / 2, y: y }, { type: 'ne', x: x + width, y: y },
         { type: 'w', x: x, y: y + height / 2 }, { type: 'e', x: x + width, y: y + height / 2 },
         { type: 'sw', x: x, y: y + height }, { type: 's', x: x + width / 2, y: y + height }, { type: 'se', x: x + width, y: y + height },

@@ -29,8 +29,9 @@ export class RenderService {
     this.renderConnections();
     this.renderStickyNotes();
     this.renderNodes();
-    this.renderPendingOrReconnectingConnection();
     this.renderSelectionHighlights();
+    this.renderPorts(this.ctx!, this.viewState!);
+    this.renderPendingOrReconnectingConnection();
     this.renderResizeHandles();
     this.renderBoxSelect();
     this.ctx = null; this.viewState = null;
@@ -110,7 +111,6 @@ export class RenderService {
         ctx.fillRect(iconX, iconY, iconSize, iconSize); 
         ctx.fillStyle = '#ffffff'; ctx.font = `${12 / viewState.scale}px Inter, sans-serif`; 
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        // Apenas como placeholder, idealmente a IconService resolveria isso
         ctx.fillText(node.icon.substring(0,2).toUpperCase(), iconX + iconSize / 2, iconY + iconSize / 2);
     }
     ctx.fillStyle = '#ffffff'; ctx.font = `${12 / viewState.scale}px Inter, sans-serif`;
@@ -291,6 +291,60 @@ export class RenderService {
             ctx.restore();
         }
     }
+  }
+
+  private renderPorts(ctx: CanvasRenderingContext2D, viewState: ViewState): void {
+    if (!this.interactionManager) return;
+
+    const nodes = this.nodeManager.getNodes();
+    const portSize = 10 / viewState.scale; // Consistent with original drawNode
+
+    nodes.forEach(node => {
+        // Consolidate input ports (fixed + visible dynamic)
+        const allInputPorts = [...node.fixedInputs, ...node.dynamicInputs.filter(p => !p.isHidden)];
+        // Consolidate output ports (fixed + visible dynamic)
+        const allOutputPorts = [...node.fixedOutputs, ...node.dynamicOutputs.filter(p => !p.isHidden)]; // Assuming dynamic outputs aren't hidden for rendering, or filter if they can be
+
+        allInputPorts.forEach((port) => {
+            // port.isHidden is already filtered for dynamicInputs, fixedInputs are assumed visible
+            const portAbsPos = this.interactionManager.getPortAbsolutePosition(node, port, viewState);
+            this.drawPort(ctx, port, portAbsPos.x, portAbsPos.y, portSize, viewState,
+                this.hoveredCompatiblePortId === port.id || this.hoveredPortIdIdle === port.id);
+
+            // Draw port label (text)
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const labelText = port.variableName || port.name; // Prefer variableName for dynamic, else name
+            if (labelText) {
+                 ctx.fillText(labelText, portAbsPos.x + portSize + (4 / viewState.scale), portAbsPos.y); // Small offset from port circle
+            }
+        });
+
+        allOutputPorts.forEach((port) => {
+            const portAbsPos = this.interactionManager.getPortAbsolutePosition(node, port, viewState);
+            this.drawPort(ctx, port, portAbsPos.x, portAbsPos.y, portSize, viewState,
+                this.hoveredCompatiblePortId === port.id || this.hoveredPortIdIdle === port.id);
+
+            // Draw port label (text)
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${11 / viewState.scale}px Inter, sans-serif`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            
+            let labelText = port.name; // Default to port name
+            // For dynamic outputs, you might want to show name or value if available
+            if (port.isDynamic && port.outputValue) {
+                labelText = `${port.name} (${port.outputValue.substring(0,10)}...)`;
+            } else {
+                labelText = port.name;
+            }
+            if (labelText) {
+              ctx.fillText(labelText, portAbsPos.x - portSize - (4 / viewState.scale), portAbsPos.y); // Small offset from port circle
+            }
+        });
+    });
   }
 
   public destroy(): void {
