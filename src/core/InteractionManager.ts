@@ -462,6 +462,7 @@ export class InteractionManager {
     else { finalSourcePort = reconInfo.fixedPort; finalTargetPort = newPort; }
     const newConnection = this.nodeManager.createConnection(finalSourcePort.id, finalTargetPort.id);
     if (newConnection) { this.events.emit('connectionRecompleted', newConnection, reconInfo.originalConnection); this.selectionManager.selectItem(newConnection.id, false); }
+    
     else { this.nodeManager.createConnection(reconInfo.originalConnection.sourcePortId, reconInfo.originalConnection.targetPortId); this.events.emit('reconnectionFailed', reconInfo.originalConnection); }
   }
 
@@ -506,37 +507,65 @@ export class InteractionManager {
     
     const minWidth = (itemData && 'minWidth' in itemData && itemData.minWidth !== undefined ? itemData.minWidth : 50);
 
-    let newX = this.originalResizeItemRect.x; let newY = this.originalResizeItemRect.y;
-    let newWidth = this.originalResizeItemRect.width; let newHeight = this.originalResizeItemRect.height;
-    const dx = currentCanvasPoint.x - this.dragStartPoint.x; const dy = currentCanvasPoint.y - this.dragStartPoint.y;
-    if (this.activeResizeHandle.includes('e')) newWidth = Math.max(minWidth, this.originalResizeItemRect.width + dx);
-    if (this.activeResizeHandle.includes('w')) { const pW = this.originalResizeItemRect.width - dx; newWidth = Math.max(minWidth, pW); newX = this.originalResizeItemRect.x + (this.originalResizeItemRect.width - newWidth); }
-    if (this.activeResizeHandle.includes('s')) newHeight = Math.max(minHeight, this.originalResizeItemRect.height + dy);
-    if (this.activeResizeHandle.includes('n')) { const pH = this.originalResizeItemRect.height - dy; newHeight = Math.max(minHeight, pH); newY = this.originalResizeItemRect.y + (this.originalResizeItemRect.height - newHeight); }
-    if (viewState.snapToGrid) {
-        const gs = viewState.gridSize; const oR = this.originalResizeItemRect.x + this.originalResizeItemRect.width; const oB = this.originalResizeItemRect.y + this.originalResizeItemRect.height;
-        if (this.activeResizeHandle.includes('w')) newX = Math.round(newX / gs) * gs; if (this.activeResizeHandle.includes('n')) newY = Math.round(newY / gs) * gs;
-        let sR = this.activeResizeHandle.includes('e') ? Math.round((this.originalResizeItemRect.x + newWidth) / gs) * gs : Math.round(oR / gs) * gs;
-        let sB = this.activeResizeHandle.includes('s') ? Math.round((this.originalResizeItemRect.y + newHeight) / gs) * gs : Math.round(oB / gs) * gs;
-        newWidth = this.activeResizeHandle.includes('w') ? Math.max(minWidth, sR - newX) : Math.max(minWidth, sR - (this.activeResizeHandle.includes('e') ? newX : Math.round(this.originalResizeItemRect.x / gs) * gs));
-        newHeight = this.activeResizeHandle.includes('n') ? Math.max(minHeight, sB - newY) : Math.max(minHeight, sB - (this.activeResizeHandle.includes('s') ? newY : Math.round(this.originalResizeItemRect.y / gs) * gs));
-        newWidth = Math.max(minWidth, Math.round(newWidth / gs) * gs); newHeight = Math.max(minHeight, Math.round(newHeight / gs) * gs);
-    }
+    let newX = this.originalResizeItemRect.x;
+    let newY = this.originalResizeItemRect.y;
+    let newWidth = this.originalResizeItemRect.width;
+    let newHeight = this.originalResizeItemRect.height;
     
-    // Adicione estes logs para depuração:
-    console.log('--- Resize Debug ---');
-    console.log('Active Handle:', this.activeResizeHandle);
-    console.log('Original Rect:', JSON.stringify(this.originalResizeItemRect));
-    console.log('Drag Start Point:', JSON.stringify(this.dragStartPoint));
-    console.log('Current Canvas Point:', JSON.stringify(currentCanvasPoint));
-    console.log('dx:', dx, 'dy:', dy);
-    console.log('minWidth:', minWidth, 'minHeight:', minHeight);
-    console.log('Calculated (newX, newY, newWidth, newHeight):', newX, newY, newWidth, newHeight);
+    const dx = currentCanvasPoint.x - this.dragStartPoint.x;
+    const dy = currentCanvasPoint.y - this.dragStartPoint.y;
 
+    switch (this.activeResizeHandle) {
+        case 'e':
+            newWidth = Math.max(minWidth, this.originalResizeItemRect.width + dx);
+            break;
+        case 'w':
+            const potentialWidth = this.originalResizeItemRect.width - dx;
+            newWidth = Math.max(minWidth, potentialWidth);
+            newX = this.originalResizeItemRect.x + (this.originalResizeItemRect.width - newWidth);
+            break;
+        case 's':
+            newHeight = Math.max(minHeight, this.originalResizeItemRect.height + dy);
+            break;
+        case 'n':
+            const potentialHeight = this.originalResizeItemRect.height - dy;
+            newHeight = Math.max(minHeight, potentialHeight);
+            newY = this.originalResizeItemRect.y + (this.originalResizeItemRect.height - newHeight);
+            break;
+        case 'se':
+            newWidth = Math.max(minWidth, this.originalResizeItemRect.width + dx);
+            newHeight = Math.max(minHeight, this.originalResizeItemRect.height + dy);
+            break;
+        case 'sw':
+            newHeight = Math.max(minHeight, this.originalResizeItemRect.height + dy);
+            const potentialWidthSW = this.originalResizeItemRect.width - dx;
+            newWidth = Math.max(minWidth, potentialWidthSW);
+            newX = this.originalResizeItemRect.x + (this.originalResizeItemRect.width - newWidth);
+            break;
+        case 'ne':
+            newWidth = Math.max(minWidth, this.originalResizeItemRect.width + dx);
+            const potentialHeightNE = this.originalResizeItemRect.height - dy;
+            newHeight = Math.max(minHeight, potentialHeightNE);
+            newY = this.originalResizeItemRect.y + (this.originalResizeItemRect.height - newHeight);
+            break;
+        case 'nw':
+            const potentialWidthNW = this.originalResizeItemRect.width - dx;
+            const potentialHeightNW = this.originalResizeItemRect.height - dy;
+            newWidth = Math.max(minWidth, potentialWidthNW);
+            newHeight = Math.max(minHeight, potentialHeightNW);
+            newX = this.originalResizeItemRect.x + (this.originalResizeItemRect.width - newWidth);
+            newY = this.originalResizeItemRect.y + (this.originalResizeItemRect.height - newHeight);
+            break;
+    }
+
+    if (viewState.snapToGrid) {
+        const gs = viewState.gridSize;
+        newX = Math.round(newX / gs) * gs;
+        newY = Math.round(newY / gs) * gs;
+        newWidth = Math.round(newWidth / gs) * gs;
+        newHeight = Math.round(newHeight / gs) * gs;
+    }
     const newRect = { x: newX, y: newY, width: newWidth, height: newHeight };
-    console.log('Final newRect to apply:', JSON.stringify(newRect));
-    console.log('--------------------');
-
     if (this.activeResizeItem.type === 'node') this.nodeManager.resizeNode(this.activeResizeItem.id, newRect);
     else if (this.activeResizeItem.type === 'stickyNote') this.stickyNoteManager.updateNoteRect(this.activeResizeItem.id, newRect);
    }
@@ -575,36 +604,18 @@ export class InteractionManager {
   }
 
   private getResizeHandleForSelectedItem(point: Point, item: DraggableItem, viewState: ViewState): ResizeHandle | null {
-    const handleVisualSize = 8; // Tamanho visual da alça em pixels de tela
-    const handleHitRadius = handleVisualSize / viewState.scale; // Raio de deteção de colisão em unidades do canvas
-    
-    const { x, y } = item.position;
-    const { width, height } = item;
-  
-    // Definições das posições das alças (centros das alças visuais)
-    const handlesDef: { type: ResizeHandle['type'], x: number, y: number }[] = [
-      { type: 'nw', x: x,           y: y },
-      { type: 'n',  x: x + width / 2, y: y },
-      { type: 'ne', x: x + width,     y: y },
-      { type: 'w',  x: x,           y: y + height / 2 },
-      { type: 'e',  x: x + width,     y: y + height / 2 },
-      { type: 'sw', x: x,           y: y + height },
-      { type: 's',  x: x + width / 2, y: y + height },
-      { type: 'se', x: x + width,     y: y + height },
+    const handleVisualSize = 8; const handleHitRadius = handleVisualSize / viewState.scale; 
+    const { x, y, width, height } = item.position;
+    const handlesDef: { type: ResixwzeHandle['type'], x: number, y: number }[] = [
+        { type: 'nw', x: x, y: y }, { type: 'n', x: x + width / 2, y: y }, { type: 'ne', x: x + width, y: y },
+        { type: 'w', x: x, y: y + height / 2 }, { type: 'e', x: x + width, y: y + height / 2 },
+        { type: 'sw', x: x, y: y + height }, { type: 's', x: x + width / 2, y: y + height }, { type: 'se', x: x + width, y: y + height },
     ];
-  
     for (const handle of handlesDef) {
-      const dx_handle = point.x - handle.x; // Distância X do mouse ao centro da alça atual
-      const dy_handle = point.y - handle.y; // Distância Y do mouse ao centro da alça atual
-      const distanceSq = dx_handle * dx_handle + dy_handle * dy_handle; // Distância ao quadrado
-      const hitRadiusSq = handleHitRadius * handleHitRadius; // Raio de deteção ao quadrado
-  
-      if (distanceSq < hitRadiusSq) {
-        return { type: handle.type, item }; // Retorna a primeira alça encontrada
-      }
+        const dx = point.x - handle.x; const dy = point.y - handle.y;
+        if (dx * dx + dy * dy < handleHitRadius * handleHitRadius) return { type: handle.type, item };
     }
-  
-    return null; // Nenhuma alça encontrada neste ponto
+    return null;
   }
 
   private getCursorForResizeHandle(handleType: ResizeHandle['type']): string {
