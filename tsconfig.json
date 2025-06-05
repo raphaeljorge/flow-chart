@@ -6,24 +6,23 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
 
-    /* Bundler mode */
-    "moduleResolution": "bundler", /* or "node" depending on setup, bundler is modern */
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true, /* Recommended for importing JSON files like package.json */
-    "isolatedModules": true,
-    "moduleDetection": "force", /* Ensures files are treated as modules */
-    "noEmit": true, /* Assuming Vite handles emit, if tsc is only for type checking */
-    // "emitDeclarationOnly": true, /* If you want to emit .d.ts files alongside JS */
-    // "declaration": true,         /* To generate .d.ts files */
-    // "declarationDir": "./dist/types", /* Output directory for .d.ts files */
+    /* JSX Support */
+    "jsx": "react-jsx",
 
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
 
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": ["src"]
 }
