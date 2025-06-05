@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { NodeEditorController } from './editor/app/NodeEditorController';
-import './editor/styles/main.css';
-import './editor/styles/theme-variables.css';
 
 const App: React.FC = () => {
   const editorContainerRef = useRef<HTMLDivElement>(null);

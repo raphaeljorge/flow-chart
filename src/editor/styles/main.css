@@ -41,6 +41,7 @@ body {
 #root {
     width: 100vw;
     height: 100vh;
+    overflow: hidden;
 }
 
 .app-container {
@@ -48,7 +49,6 @@ body {
     height: 100%;
     position: relative;
     display: flex;
-    flex-direction: column;
 }
 
 .editor-container {
@@ -68,7 +68,8 @@ body {
 }
 
 .canvas-container {
-    flex: 1;
+    width: 100%;
+    height: 100%;
     background-color: var(--canvas-background-color);
     overflow: hidden;
     position: relative;
@@ -99,16 +100,19 @@ body {
 
 .node-palette-wrapper {
     width: 280px;
+    height: 100%;
     background: var(--ui-panel-background-color);
     border-right: 1px solid var(--ui-panel-border-color);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     z-index: 100;
+    flex-shrink: 0;
 }
 
 .config-panel-wrapper {
     width: 320px;
+    height: 100%;
     background: var(--ui-panel-background-color);
     border-left: 1px solid var(--ui-panel-border-color);
     display: flex;
@@ -117,6 +121,7 @@ body {
     position: relative;
     transform: translateX(100%);
     transition: transform 0.3s ease;
+    flex-shrink: 0;
 }
 
 .config-panel-wrapper.visible {
