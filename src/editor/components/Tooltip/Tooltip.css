@@ -1,0 +1,55 @@
+/* src/editor/components/Tooltip/Tooltip.css */
+.editor-tooltip {
+  position: absolute; /* Positioned within its wrapper (e.g., overlay-container) */
+  background: var(
+    --ui-panel-background-color,
+    #1c1c1c
+  ); /* Slightly different from main panels for distinction */
+  border: 1px solid var(--ui-panel-border-color, #333333);
+  border-radius: 6px;
+  padding: 10px 14px; /* Comfortable padding */
+  max-width: 300px; /* Prevent very wide tooltips */
+  z-index: var(--tooltip-z-index, 1200); /* Highest z-index for UI elements */
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  color: var(--editor-text-color-light, #e0e0e0);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none; /* Tooltips should not be interactive */
+  /* Transition for opacity can be added if desired for fade-in/out */
+  /* opacity: 0; */
+  /* transition: opacity 0.15s ease-in-out; */
+}
+
+/* .editor-tooltip.visible {
+    opacity: 1;
+  } */
+
+.tooltip-title {
+  font-size: 14px;
+  font-weight: 600; /* Bolder title */
+  color: var(--editor-text-color-light, #ffffff);
+  margin-bottom: 6px;
+}
+
+.tooltip-type {
+  font-size: 12px;
+  color: var(--editor-text-color-medium, #b0b0b0);
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.tooltip-description {
+  font-size: 13px;
+  color: var(--editor-text-color-light, #dcdcdc);
+  margin-bottom: 8px;
+  white-space: pre-wrap; /* Allow descriptions to wrap and respect newlines */
+}
+
+.tooltip-id {
+  font-size: 11px;
+  color: var(--editor-text-color-darker, #777777);
+  font-family: monospace;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-element-border-color, #333333); /* Separator for ID */
+}

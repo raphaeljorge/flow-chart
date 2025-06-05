@@ -1,0 +1,75 @@
+:root {
+    /* General UI */
+    --editor-font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    --editor-line-height: 1.5;
+    --editor-font-weight-normal: 400;
+    --editor-background-color: #242424;
+    --editor-text-color: rgba(255, 255, 255, 0.87);
+    --editor-text-color-light: #ffffff;
+    --editor-text-color-medium: #aaa;
+    --editor-text-color-dark: #888;
+    --editor-text-color-darker: #666;
+  
+    /* Canvas */
+    --canvas-background-color: #0a0a0a;
+    --canvas-grid-minor-color: rgba(255, 255, 255, 0.08);
+    --canvas-grid-major-color: rgba(255, 255, 255, 0.12);
+  
+    /* Nodes */
+    --node-background-color: #1a1a1a;
+    --node-border-color: #2a2a2a;
+    --node-header-background-color: #2a2a2a;
+    --node-icon-background-color: #4a4a4a;
+    --node-icon-text-color: var(--editor-text-color-light);
+    --node-title-text-color: var(--editor-text-color-light);
+    --node-id-text-color: var(--editor-text-color-darker);
+    --node-port-background-color: #2a2a2a;
+    --node-port-border-color: #3a3a3a;
+    --node-port-text-color: var(--editor-text-color-light);
+    --node-port-dynamic-background-color: #B8860B; /* DarkGoldenRod */
+    --node-port-dynamic-border-color: #FFD700; /* Gold */
+  
+  
+    /* Connections */
+    --connection-default-color: #666666;
+    --connection-pending-color: #5A93E4;
+    --connection-pending-compatible-color: #4CAF50;
+    --connection-reconnecting-color: #FF9800;
+    --connection-ghosted-color: #aaa;
+  
+  
+    /* Selection & Highlighting */
+    --selection-highlight-color: #6366f1;
+    --selection-highlight-color-transparent: rgba(99, 102, 241, 0.1);
+    --port-highlight-border-color: #5A93E4;
+    --port-highlight-fill-color: #3c6493;
+  
+    /* UI Components */
+    --ui-panel-background-color: #1a1a1a;
+    --ui-panel-border-color: #2a2a2a;
+    --ui-element-background-color: #2a2a2a;
+    --ui-element-border-color: #3a3a3a;
+    --ui-element-hover-background-color: #3a3a3a;
+    --ui-element-active-background-color: #4a4a4a;
+    --ui-button-primary-background-color: #6366f1;
+    --ui-button-primary-hover-background-color: #4f46e5;
+    --ui-button-secondary-background-color: #2a2a2a;
+    --ui-button-secondary-hover-background-color: #3a3a3a;
+    --ui-button-danger-background-color: #ef4444;
+    --ui-button-danger-hover-background-color: #dc2626;
+    --ui-input-background-color: #2a2a2a;
+    --ui-input-border-color: #3a3a3a;
+    --ui-input-focus-border-color: #6366f1;
+  
+    /* Status Colors */
+    --status-success-color: #22c55e;
+    --status-error-color: #ef4444;
+    --status-running-color: #3b82f6;
+    --status-warning-color: #f59e0b;
+    --status-unsaved-color: #8b5cf6;
+  
+    /* Sticky Notes */
+    --sticky-note-default-background-color: #2a2a2a;
+    --sticky-note-default-text-color: var(--editor-text-color-light);
+    --sticky-note-border-color: #3a3a3a;
+  }

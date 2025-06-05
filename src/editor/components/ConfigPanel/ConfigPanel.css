@@ -1,0 +1,218 @@
+/* src/editor/components/ConfigPanel/ConfigPanel.css */
+.config-panel-wrapper {
+  /* This is the main container for the panel, controlled by NodeEditorController */
+  width: 320px; /* Default width */
+  height: 100vh;
+  background-color: var(--ui-panel-background-color, #1a1a1a);
+  border-left: 1px solid var(--ui-panel-border-color, #2a2a2a);
+  position: fixed; /* Or absolute if #app is relative and manages layout */
+  right: 0;
+  top: 0;
+  transform: translateX(100%); /* Hidden by default */
+  transition: transform 0.3s ease-in-out;
+  z-index: var(--config-panel-z-index, 1050);
+  display: flex; /* To allow the .config-panel to fill it */
+  flex-direction: column;
+}
+
+.config-panel-wrapper.visible {
+  transform: translateX(0);
+}
+
+.config-panel {
+  /* The actual content area of the panel */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden; /* Prevents internal content from breaking layout */
+}
+
+.config-panel-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--ui-panel-border-color, #2a2a2a);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0; /* Header should not shrink */
+}
+
+.config-panel-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--node-icon-background-color, #4a4a4a);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--node-icon-text-color, #fff);
+  font-size: 18px; /* Icon size */
+}
+.config-panel-icon .ph {
+  font-size: inherit;
+}
+
+.config-panel-title {
+  flex: 1;
+  min-width: 0; /* Allows text to truncate */
+}
+
+.config-panel-title h2 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--editor-text-color-light, #fff);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.config-panel-title p {
+  font-size: 12px;
+  color: var(--editor-text-color-dark, #888);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.config-panel-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--editor-text-color-dark, #888);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.config-panel-close:hover {
+  color: var(--editor-text-color-light, #fff);
+  background-color: var(
+    --ui-element-hover-background-color,
+    rgba(255, 255, 255, 0.1)
+  );
+}
+.config-panel-close .ph {
+  font-size: 20px;
+}
+
+.config-panel-tabs {
+  padding: 0 8px; /* Reduced padding */
+  border-bottom: 1px solid var(--ui-panel-border-color, #2a2a2a);
+  display: flex;
+  gap: 8px; /* Reduced gap */
+  flex-shrink: 0; /* Tabs should not shrink */
+  overflow-x: auto; /* Allow horizontal scroll if too many tabs */
+  scrollbar-width: thin;
+}
+
+.config-tab {
+  padding: 10px 8px; /* Adjusted padding */
+  color: var(--editor-text-color-dark, #888);
+  font-size: 13px; /* Slightly smaller font */
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.config-tab:hover {
+  color: var(--editor-text-color-light, #fff);
+}
+
+.config-tab.active {
+  color: var(--editor-text-color-light, #fff);
+  border-bottom-color: var(--selection-highlight-color, #6366f1);
+  font-weight: 500;
+}
+.config-tab .ph {
+  font-size: 16px; /* Icon size in tab */
+}
+
+.config-panel-content {
+  flex: 1; /* Content area takes remaining space and scrolls */
+  overflow-y: auto;
+  padding: 16px;
+}
+/* Scrollbar styling for config-panel-content */
+.config-panel-content::-webkit-scrollbar {
+  width: 8px;
+}
+.config-panel-content::-webkit-scrollbar-track {
+  background: var(--ui-panel-background-color, #1a1a1a);
+}
+.config-panel-content::-webkit-scrollbar-thumb {
+  background-color: var(--ui-element-border-color, #3a3a3a);
+  border-radius: 4px;
+}
+.config-panel-content::-webkit-scrollbar-thumb:hover {
+  background-color: var(--editor-text-color-darker, #666);
+}
+
+.config-section {
+  margin-bottom: 20px;
+}
+
+.config-section h3 {
+  /* If sections have titles */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--editor-text-color-medium, #aaa);
+  margin: 0 0 12px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ui-element-border-color, #3a3a3a);
+}
+
+.config-no-params {
+  padding: 20px;
+  text-align: center;
+  color: var(--editor-text-color-dark, #888);
+  font-style: italic;
+}
+
+.config-panel-actions {
+  padding: 16px;
+  border-top: 1px solid var(--ui-panel-border-color, #2a2a2a);
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0; /* Actions should not shrink */
+  background-color: var(
+    --ui-panel-background-color,
+    #1a1a1a
+  ); /* Match panel bg */
+}
+.config-panel-actions .btn {
+  flex-grow: 1; /* Distribute space if multiple buttons */
+}
+.config-panel-actions .btn .ph {
+  font-size: 16px;
+}
+
+/* Specific input styling from main.css is generally fine, but overrides can go here */
+.config-panel .form-group {
+  margin-bottom: 12px; /* Slightly tighter spacing */
+}
+
+.config-panel .form-group label {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.config-panel .code-editor {
+  min-height: 100px; /* Ensure a minimum usable height */
+  max-height: 300px; /* Prevent it from becoming too large */
+}
+
+.config-panel .config-button {
+  /* For buttons rendered as parameters */
+  width: 100%;
+  padding: 8px 12px;
+  justify-content: center; /* Center button text/icon */
+}

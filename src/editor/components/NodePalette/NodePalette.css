@@ -1,0 +1,182 @@
+/* src/editor/components/NodePalette/NodePalette.css */
+.node-palette {
+  /* This is the main container for the palette content, now child of .node-palette-wrapper */
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill the wrapper */
+  background-color: var(--ui-panel-background-color, #1a1a1a);
+  overflow: hidden;
+}
+
+.palette-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--ui-panel-border-color, #2a2a2a);
+}
+
+.palette-search {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--ui-input-background-color, #2a2a2a);
+  border: 1px solid var(--ui-input-border-color, #3a3a3a);
+  border-radius: 6px;
+  color: var(--editor-text-color-light, #fff);
+  font-size: 14px;
+}
+
+.palette-search::placeholder {
+  color: var(--editor-text-color-dark, #888);
+}
+
+.palette-search:focus {
+  border-color: var(--ui-input-focus-border-color, #6366f1);
+  outline: none;
+}
+
+.palette-categories {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ui-panel-border-color, #2a2a2a);
+  flex-shrink: 0; /* Prevent shrinking when node list is long */
+}
+
+.category-item {
+  padding: 8px 16px;
+  color: var(--editor-text-color-light, #fff);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.category-item:hover {
+  background: var(--ui-element-hover-background-color, #2a2a2a);
+}
+
+.category-item.active {
+  background: var(--ui-element-active-background-color, #3a3a3a);
+  font-weight: 500;
+}
+
+.category-item .ph {
+  /* Icon styling */
+  font-size: 16px;
+  color: var(--editor-text-color-medium, #aaa);
+}
+.category-item.active .ph {
+  color: var(--editor-text-color-light, #fff);
+}
+
+.palette-nodes {
+  flex: 1; /* Allows this section to grow and scroll */
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Scrollbar styling for palette-nodes */
+.palette-nodes::-webkit-scrollbar {
+  width: 8px;
+}
+.palette-nodes::-webkit-scrollbar-track {
+  background: var(--ui-panel-background-color, #1a1a1a);
+}
+.palette-nodes::-webkit-scrollbar-thumb {
+  background-color: var(--ui-element-border-color, #3a3a3a);
+  border-radius: 4px;
+}
+.palette-nodes::-webkit-scrollbar-thumb:hover {
+  background-color: var(--editor-text-color-darker, #666);
+}
+
+.node-item {
+  padding: 10px; /* Slightly reduced padding */
+  background: var(--ui-element-background-color, #2a2a2a);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: grab; /* Indicates draggable */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.node-item:hover {
+  background: var(--ui-element-hover-background-color, #3a3a3a);
+}
+
+.node-item:active {
+  cursor: grabbing;
+}
+
+.node-icon-wrapper {
+  /* Wrapper for the icon itself */
+  width: 32px;
+  height: 32px;
+  background: var(--node-icon-background-color, #4a4a4a);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--node-icon-text-color, #fff);
+  font-size: 18px; /* Icon size inside wrapper */
+  flex-shrink: 0;
+}
+.node-icon-wrapper .ph {
+  font-size: inherit; /* Phosphor icon takes size from wrapper */
+}
+
+.node-info {
+  flex: 1;
+  min-width: 0; /* Allows text to truncate */
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--node-title-text-color, #fff);
+  margin-bottom: 2px; /* Reduced margin */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-description {
+  font-size: 12px;
+  color: var(--editor-text-color-dark, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.favorite-button {
+  position: absolute;
+  top: 6px; /* Adjusted position */
+  right: 6px;
+  width: 28px; /* Slightly larger hit area */
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--editor-text-color-dark, #888);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.favorite-button:hover {
+  color: var(--editor-text-color-light, #fff);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.favorite-button.active {
+  color: var(
+    --status-warning-color,
+    #fbbf24
+  ); /* Using a theme variable for favorite color */
+}
+.favorite-button .ph {
+  font-size: 16px;
+}

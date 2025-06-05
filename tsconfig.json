@@ -7,17 +7,23 @@
     "skipLibCheck": true,
 
     /* Bundler mode */
-    "moduleResolution": "bundler",
+    "moduleResolution": "bundler", /* or "node" depending on setup, bundler is modern */
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true, /* Recommended for importing JSON files like package.json */
     "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
+    "moduleDetection": "force", /* Ensures files are treated as modules */
+    "noEmit": true, /* Assuming Vite handles emit, if tsc is only for type checking */
+    // "emitDeclarationOnly": true, /* If you want to emit .d.ts files alongside JS */
+    // "declaration": true,         /* To generate .d.ts files */
+    // "declarationDir": "./dist/types", /* Output directory for .d.ts files */
+
 
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
   },
   "include": ["src"]
 }
