@@ -3,8 +3,7 @@ import { CanvasEngine } from './CanvasEngine';
 import { NodeManager } from '../state/NodeManager';
 import { StickyNoteManager } from '../state/StickyNoteManager';
 import { SelectionManager } from '../state/SelectionManager';
-import { InteractionManager } // '../interaction/InteractionManager';
-  from '../interaction/InteractionManager'; // Circular dependency if InteractionManager imports RenderService
+import { InteractionManager } from '../interaction/InteractionManager';
 import { ConnectionManager } from '../state/ConnectionManager';
 import { ViewStore } from '../state/ViewStore';
 import { Node, StickyNote, ViewState, NodePort, Connection, Point } from '../core/types';
@@ -12,13 +11,11 @@ import {
   NODE_HEADER_HEIGHT, NODE_PORT_VERTICAL_SPACING, NODE_PORT_SIZE,
   RECONNECT_HANDLE_RADIUS, RESIZE_HANDLE_SIZE,
   EVENT_CANVAS_BEFORE_RENDER, EVENT_CANVAS_POINTER_MOVE, EVENT_CANVAS_POINTER_LEAVE,
-  // Constants for hovered port IDs, etc.
 } from '../core/constants';
-
 
 export class RenderService {
   private ctx: CanvasRenderingContext2D | null = null;
-  private currentViewState: ViewState | null = null; // Renamed from viewState to avoid conflict
+  private currentViewState: ViewState | null = null;
   private hoveredCompatiblePortId: string | null = null;
   private hoveredPortIdIdle: string | null = null;
 
@@ -250,17 +247,17 @@ export class RenderService {
     ctx.textBaseline = 'middle';
     ctx.fillText(node.title, x + (node.icon ? 44 : 16), y + headerHeight / 2);
 
-    if (node.status) {
-      const statusColorMap: Record<string, string> = {
-        success: this.themeColors.statusSuccess, error: this.themeColors.statusError,
-        running: this.themeColors.statusRunning, warning: this.themeColors.statusWarning,
-        unsaved: this.themeColors.statusUnsaved
-      };
-      ctx.fillStyle = statusColorMap[node.status] || '#888';
-      ctx.beginPath();
-      ctx.arc(x + width - 16, y + headerHeight / 2, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // if (node.status) {
+    //   const statusColorMap: Record<string, string> = {
+    //     success: this.themeColors.statusSuccess, error: this.themeColors.statusError,
+    //     running: this.themeColors.statusRunning, warning: this.themeColors.statusWarning,
+    //     unsaved: this.themeColors.statusUnsaved
+    //   };
+    //   ctx.fillStyle = statusColorMap[node.status] || '#888';
+    //   ctx.beginPath();
+    //   ctx.arc(x + width - 16, y + headerHeight / 2, 5, 0, Math.PI * 2);
+    //   ctx.fill();
+    // }
 
     // ID do Nó
     ctx.fillStyle = this.themeColors.nodeIdText;
