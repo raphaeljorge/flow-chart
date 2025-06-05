@@ -2,7 +2,6 @@
 @font-face {
     font-family: 'Phosphor';
     src: url('https://unpkg.com/@phosphor-icons/web@2.0.3/bold/phosphor-bold.woff2') format('woff2');
-    /* Ensure this path is correct or hosted locally */
     font-weight: normal;
     font-style: normal;
 }
@@ -11,12 +10,9 @@
     font-family: var(--editor-font-family);
     line-height: var(--editor-line-height);
     font-weight: var(--editor-font-weight-normal);
-
     color-scheme: light dark;
-    /* This might be overridden by specific component styles */
     color: var(--editor-text-color);
     background-color: var(--editor-background-color);
-
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -29,13 +25,11 @@
     box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
     height: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
-    /* Prevent body scrollbars */
 }
 
 body {
@@ -44,11 +38,33 @@ body {
     min-height: 100vh;
 }
 
-#app {
+#root {
     width: 100vw;
     height: 100vh;
+}
+
+.app-container {
+    width: 100%;
+    height: 100%;
     position: relative;
     display: flex;
+    flex-direction: column;
+}
+
+.editor-container {
+    flex: 1;
+    position: relative;
+    background-color: var(--canvas-background-color);
+    overflow: hidden;
+}
+
+.button-container {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1001;
+    display: flex;
+    gap: 10px;
 }
 
 .canvas-container {
@@ -56,7 +72,6 @@ body {
     background-color: var(--canvas-background-color);
     overflow: hidden;
     position: relative;
-    /* For absolute positioning of canvas and overlays */
 }
 
 .canvas-container canvas {
@@ -79,14 +94,8 @@ body {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    /* Allows clicks to pass through to the canvas */
     z-index: 1000;
-    /* Ensures overlays are on top of the canvas but below UI like context menus */
 }
-
-
-/* Palette, Config Panel, Toolbar specific styles will be in their own CSS files if co-located */
-/* Or defined here if kept global */
 
 .node-palette-wrapper {
     width: 280px;
@@ -96,7 +105,6 @@ body {
     flex-direction: column;
     overflow: hidden;
     z-index: 100;
-    /* Ensure palette is above canvas */
 }
 
 .config-panel-wrapper {
@@ -106,11 +114,8 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 100;
-    /* Ensure config panel is above canvas */
     position: relative;
-    /* For potential absolute positioning of internal elements */
     transform: translateX(100%);
-    /* Hidden by default */
     transition: transform 0.3s ease;
 }
 
@@ -118,17 +123,13 @@ body {
     transform: translateX(0);
 }
 
-
 .toolbar-wrapper {
     position: absolute;
-    /* Positioned over the canvas container */
     top: 20px;
     left: 20px;
     z-index: 900;
-    /* Above canvas, below overlays if needed */
 }
 
-/* Generic UI elements, can be overridden by component-specific styles */
 .btn {
     padding: 8px 16px;
     border: none;
@@ -204,7 +205,6 @@ body {
     font-size: 12px;
     margin-top: 4px;
     display: none;
-    /* Hidden by default */
 }
 
 .form-group.has-error .error {
@@ -216,7 +216,6 @@ body {
 .form-group.has-error textarea {
     border-color: var(--status-error-color);
 }
-
 
 .form-group .help {
     color: var(--editor-text-color-darker);
@@ -259,7 +258,6 @@ body {
 
 .code-editor {
     height: 150px;
-    /* Default height, can be adjusted */
     font-family: monospace;
     resize: vertical;
     background-color: var(--ui-input-background-color);
@@ -270,7 +268,6 @@ body {
 }
 
 .ph {
-    /* Base class for Phosphor icons if using the font directly */
     font-family: 'Phosphor';
     font-weight: normal;
     font-style: normal;
