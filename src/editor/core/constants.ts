@@ -37,6 +37,7 @@ export const STICKY_NOTE_DEFAULT_FONT_SIZE = 14;
 
 // Interaction
 export const RESIZE_HANDLE_SIZE = 8; // Visual size of resize handles
+export const RESIZE_BORDER_THRESHOLD = 5; // <-- ADICIONE ESTA LINHA (Sensibilidade da borda em pixels)
 export const DOUBLE_CLICK_INTERVAL = 300; // ms for detecting double click
 
 // UI Elements

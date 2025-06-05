@@ -222,20 +222,28 @@ export class CanvasEngine {
     const { scale, offset, gridSize } = viewState;
     const scaledGridSize = gridSize * scale;
 
+    // Evita desenhar o grid se ele for muito pequeno, melhorando a performance
+    if (scaledGridSize < 4) return;
+
     this.ctx.beginPath();
-    // Use CSS variables for grid colors
     const minorGridColor = getComputedStyle(this.canvas).getPropertyValue('--canvas-grid-minor-color').trim() || 'rgba(255, 255, 255, 0.08)';
     const majorGridColor = getComputedStyle(this.canvas).getPropertyValue('--canvas-grid-major-color').trim() || 'rgba(255, 255, 255, 0.12)';
 
-    // Minor grid lines
-    this.ctx.strokeStyle = minorGridColor;
-    this.ctx.lineWidth = 1; // Pixel-perfect lines, not scaled
+    const majorGridMultiple = 5;
+    const majorScaledGridSize = scaledGridSize * majorGridMultiple;
 
-    const startX = -offset.x % scaledGridSize;
-    const startY = -offset.y % scaledGridSize;
+    // Calcula as posições iniciais com base no offset do canvas
+    const startX = offset.x % scaledGridSize;
+    const startY = offset.y % scaledGridSize;
+    const majorStartX = offset.x % majorScaledGridSize;
+    const majorStartY = offset.y % majorScaledGridSize;
+
+    // Desenha as linhas menores
+    this.ctx.strokeStyle = minorGridColor;
+    this.ctx.lineWidth = 1; // Linhas sempre com 1px de espessura
 
     for (let x = startX; x < this.canvas.width; x += scaledGridSize) {
-      this.ctx.moveTo(Math.floor(x) + 0.5, 0); // Pixel snapping
+      this.ctx.moveTo(Math.floor(x) + 0.5, 0);
       this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
     }
     for (let y = startY; y < this.canvas.height; y += scaledGridSize) {
@@ -244,16 +252,11 @@ export class CanvasEngine {
     }
     this.ctx.stroke();
 
-    // Major grid lines
-    const majorGridMultiple = 5;
-    const majorScaledGridSize = scaledGridSize * majorGridMultiple;
-    this.ctx.strokeStyle = majorGridColor;
-    // this.ctx.lineWidth = 1; // Major grid lines can be slightly thicker if desired
-
-    const majorStartX = -offset.x % majorScaledGridSize;
-    const majorStartY = -offset.y % majorScaledGridSize;
-
+    // Desenha as linhas maiores por cima
     this.ctx.beginPath();
+    this.ctx.strokeStyle = majorGridColor;
+    this.ctx.lineWidth = 1;
+
     for (let x = majorStartX; x < this.canvas.width; x += majorScaledGridSize) {
       this.ctx.moveTo(Math.floor(x) + 0.5, 0);
       this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
@@ -279,20 +282,24 @@ export class CanvasEngine {
 
     const viewState = this.viewStore.getState();
 
+    // 1. Limpa o canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.ctx.save(); // Save context for global transformations
+    // 2. Desenha o grid diretamente na tela (em "screen space")
+    this.drawGrid();
+
+    // 3. Salva o contexto e aplica a transformação de zoom/pan para os nós e conexões
+    this.ctx.save();
     this.ctx.translate(viewState.offset.x, viewState.offset.y);
     this.ctx.scale(viewState.scale, viewState.scale);
 
-    this.drawGrid(); // Grid is drawn in the transformed space (before scaling relative to elements)
-
-    // RenderService will draw elements within this transformed context
+    // 4. Emite o evento para que o RenderService desenhe os elementos
     this.events.emit(EVT_BEFORE_RENDER, this.ctx, viewState);
 
-    this.ctx.restore(); // Restore context
+    // 5. Restaura o contexto para o estado original
+    this.ctx.restore();
 
-    // For overlays, UI elements drawn in screen space (not affected by pan/zoom)
+    // 6. Emite o evento para desenhar elementos de sobreposição (se houver)
     this.events.emit(EVT_AFTER_RENDER, this.ctx, viewState);
   };
 

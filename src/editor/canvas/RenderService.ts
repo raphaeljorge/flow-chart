@@ -158,16 +158,15 @@ export class RenderService {
     const height = node.height;
     const headerHeight = NODE_HEADER_HEIGHT;
     const isSelected = this.selectionManager.isSelected(node.id);
-    const cornerRadius = 8 / viewState.scale;
+    const cornerRadius = 8;
 
     // Use a cor do nó ou um fallback padrão
     const nodeCustomColor = node.color || this.themeColors.nodeBorder; // Fallback para a cor da borda do tema se não houver cor customizada
 
-    // 1. Desenha o corpo do nó com cantos arredondados e cor de fundo
-    ctx.fillStyle = this.themeColors.nodeBackground; // Fundo fixo preto
-    ctx.strokeStyle = isSelected ? this.themeColors.selectionHighlight : nodeCustomColor; // Borda usa a cor customizada
-    ctx.lineWidth = (isSelected ? 2 : 1) / viewState.scale;
+    // ETAPA 1: Desenhar os preenchimentos de fundo (sem bordas)
 
+    // Fundo do corpo principal (retângulo arredondado completo)
+    ctx.fillStyle = this.themeColors.nodeBackground;
     ctx.beginPath();
     ctx.moveTo(x + cornerRadius, y);
     ctx.lineTo(x + width - cornerRadius, y);
@@ -180,48 +179,76 @@ export class RenderService {
     ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 
-    // 2. Desenha o cabeçalho do nó
+    // Fundo do cabeçalho (desenhado por cima do fundo do corpo)
     ctx.fillStyle = this.themeColors.nodeHeaderBackground;
-    ctx.fillRect(x, y, width, headerHeight);
-
-    // 3. Draw only the left, top, and right borders of the header
     ctx.beginPath();
-    // Start at the bottom-left of the header
     ctx.moveTo(x, y + headerHeight);
-    // Draw up to the top-left corner (left border)
-    ctx.lineTo(x, y);
-    // Draw across to the top-right corner (top border)
-    ctx.lineTo(x + width, y);
-    // Draw down to the bottom-right corner (right border)
+    ctx.lineTo(x, y + cornerRadius);
+    ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius);
+    ctx.lineTo(x + width - cornerRadius, y);
+    ctx.arcTo(x + width, y, x + width, y + cornerRadius, cornerRadius);
     ctx.lineTo(x + width, y + headerHeight);
-    // Apply the stroke to the path we just defined
+    ctx.closePath();
+    ctx.fill();
+
+    // ETAPA 2: Desenhar TODAS as bordas com a nova lógica de seleção
+    // A COR da borda é sempre a cor do nó.
+    ctx.strokeStyle = nodeCustomColor;
+    // A ESPESSURA da borda aumenta se estiver selecionado.
+    ctx.lineWidth = (isSelected ? 2.5 : 1.5) / viewState.scale;
+    
+    ctx.beginPath();
+    
+    // Caminho para a borda externa completa
+    ctx.moveTo(x + cornerRadius, y);
+    ctx.lineTo(x + width - cornerRadius, y);
+    ctx.arcTo(x + width, y, x + width, y + cornerRadius, cornerRadius);
+    ctx.lineTo(x + width, y + height - cornerRadius);
+    ctx.arcTo(x + width, y + height, x + width - cornerRadius, y + height, cornerRadius);
+    ctx.lineTo(x + cornerRadius, y + height);
+    ctx.arcTo(x, y + height, x, y + height - cornerRadius, cornerRadius);
+    ctx.lineTo(x, y + cornerRadius);
+    ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius);
+    ctx.closePath();
+    
+    // Adiciona a linha de separação ao mesmo caminho
+    // ctx.moveTo(x, y + headerHeight);
+    // ctx.lineTo(x + width, y + headerHeight);
+
+    // Executa o comando 'stroke' uma única vez para desenhar tudo com o mesmo estilo
     ctx.stroke();
 
-    // 3. Desenha os elementos do cabeçalho (ícone, título, status)
-    // Icon
+    // ETAPA 3: Desenhar o conteúdo do cabeçalho (permanece igual)
+    const fontFamily = getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily;
+    
     if (node.icon) {
-      ctx.fillStyle = nodeCustomColor; // Ícone usa a cor customizada
-      const iconX = x + 8 / viewState.scale;
-      const iconY = y + 8 / viewState.scale;
-      const iconSize = 24 / viewState.scale;
-      // Para o fundo do ícone, podemos usar a mesma cor customizada, mas um pouco mais escura/transparente
-      // Ou usar o nodeIconBackground do tema para um contraste consistente
-      ctx.fillRect(iconX, iconY, iconSize, iconSize);
-      ctx.fillStyle = this.themeColors.nodeIconText; // Texto do ícone permanece branco
-      ctx.font = `bold ${12 / viewState.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(node.icon.substring(0, 2).toUpperCase(), iconX + iconSize / 2, iconY + iconSize / 2);
+      const iconSize = 24;
+      const iconX = x + 10;
+      const iconY = y + (headerHeight - iconSize) / 2;
+      
+      ctx.fillStyle = nodeCustomColor;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(iconX, iconY, iconSize, iconSize, 4);
+      } else {
+        ctx.rect(iconX, iconY, iconSize, iconSize);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = this.themeColors.nodeIconText;
+      ctx.font = `bold 14px ${fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.icon.substring(0, 2).toUpperCase(), iconX + iconSize / 2, iconY + iconSize / 2 + 1);
     }
 
-    // Title
-    ctx.fillStyle = this.themeColors.nodeTitleText; // Título do nó permanece branco
-    ctx.font = `${12 / viewState.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(node.title, x + (node.icon ? 40 / viewState.scale : 12 / viewState.scale), y + headerHeight / 2);
+    ctx.fillStyle = this.themeColors.nodeTitleText;
+    ctx.font = `bold 14px ${fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.title, x + (node.icon ? 44 : 16), y + headerHeight / 2);
 
-    // Status (mantém as cores de status do tema)
     if (node.status) {
       const statusColorMap: Record<string, string> = {
         success: this.themeColors.statusSuccess, error: this.themeColors.statusError,
@@ -230,41 +257,46 @@ export class RenderService {
       };
       ctx.fillStyle = statusColorMap[node.status] || '#888';
       ctx.beginPath();
-      ctx.arc(x + width - (15 / viewState.scale), y + headerHeight / 2, 5 / viewState.scale, 0, Math.PI * 2);
+      ctx.arc(x + width - 16, y + headerHeight / 2, 5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Node ID (mantém a cor do tema, um cinza mais escuro)
+    // ID do Nó
     ctx.fillStyle = this.themeColors.nodeIdText;
-    ctx.font = `${10 / viewState.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
-    ctx.fillText(`#${node.id.slice(0, 8)}`, x + (12 / viewState.scale), y + height - (12 / viewState.scale));
+    ctx.font = `10px ${fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`#${node.id.slice(0, 8)}`, x + 12, y + height - 8);
   }
 
   private drawPort(ctx: CanvasRenderingContext2D, port: NodePort, canvasX: number, canvasY: number, viewState: ViewState, isHighlighted: boolean = false): void {
     if (port.isHidden) return;
 
-    const portScaledSize = NODE_PORT_SIZE / viewState.scale;
-    ctx.lineWidth = (isHighlighted ? 2 : 1) / viewState.scale;
+    // USA O TAMANHO CONSTANTE DA PORTA. A escala global do canvas cuidará do redimensionamento.
+    const portRadius = NODE_PORT_SIZE / 2;
 
-    // Obtenha a cor do nó pai para as portas, se for um nó.
-    // Você precisará passar o objeto Node para drawPort, ou buscar ele aqui.
-    // Uma forma é buscar o nó aqui, assumindo que port.nodeId está sempre disponível e é um ID de nó válido.
+    // A espessura da borda da porta continua sendo ajustada para parecer sempre nítida na tela.
+    ctx.lineWidth = (isHighlighted ? 2 : 1.5) / viewState.scale;
+
     const parentNode = this.nodeManager.getNode(port.nodeId);
-    const nodeCustomColor = parentNode?.color || this.themeColors.nodePortBorder; // Fallback
+    const nodeCustomColor = parentNode?.color || this.themeColors.nodePortBorder;
 
     const borderColor = port.isDynamic
         ? this.themeColors.nodePortDynamicBorder
-        : (isHighlighted ? this.themeColors.portHighlightBorder : nodeCustomColor); // Borda da porta usa a cor customizada
-    const fillColor = port.isDynamic
-        ? this.themeColors.nodePortDynamicBackground
-        : (isHighlighted ? this.themeColors.portHighlightFill : nodeCustomColor); // Preenchimento da porta usa a cor customizada
+        : (isHighlighted ? this.themeColors.portHighlightBorder : nodeCustomColor);
+    
+    const fillColor = isHighlighted 
+        ? this.themeColors.portHighlightFill 
+        : (port.isDynamic ? this.themeColors.nodePortDynamicBackground : nodeCustomColor);
 
     ctx.strokeStyle = borderColor;
     ctx.fillStyle = fillColor;
+
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, portScaledSize / 2, 0, Math.PI * 2);
+    // O raio do arco agora usa o valor não escalado.
+    ctx.arc(canvasX, canvasY, portRadius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
+    ctx.stroke()
   }
 
   private drawStickyNote(ctx: CanvasRenderingContext2D, note: StickyNote, viewState: ViewState): void {
@@ -273,13 +305,14 @@ export class RenderService {
     const width = note.width;
     const height = note.height;
     const isSelected = this.selectionManager.isSelected(note.id);
-    const cornerRadius = 8 / viewState.scale; // Raio dos cantos para sticky note
+    const cornerRadius = 8; // Raio dos cantos para sticky note
 
     ctx.fillStyle = note.style.backgroundColor || this.themeColors.stickyNoteDefaultBackground;
-    ctx.strokeStyle = isSelected ? this.themeColors.selectionHighlight : (this.themeColors.stickyNoteBorder || '#3a3a3a');
-    ctx.lineWidth = (isSelected ? 2 : 1) / viewState.scale;
+    // A COR da borda é sempre a padrão da anotação.
+    ctx.strokeStyle = this.themeColors.stickyNoteBorder || '#3a3a3a';
+    // A ESPESSURA aumenta se estiver selecionado.
+    ctx.lineWidth = (isSelected ? 2.5 : 1) / viewState.scale;
 
-    // --- Início da alteração para cantos arredondados na sticky note ---
     ctx.beginPath();
     ctx.moveTo(x + cornerRadius, y);
     ctx.lineTo(x + width - cornerRadius, y);
@@ -293,14 +326,14 @@ export class RenderService {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // --- Fim da alteração ---
 
     // Content
     ctx.fillStyle = note.style.textColor || this.themeColors.stickyNoteDefaultText;
-    const fontSize = (note.style.fontSize || 14) / viewState.scale;
+    const fontSize = (note.style.fontSize || 14);
     ctx.font = `${fontSize}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    const padding = 12 / viewState.scale;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const padding = 12;
     const lines = note.content.split('\n');
     const lineHeight = fontSize * 1.2;
     lines.forEach((line, index) => {
@@ -373,8 +406,10 @@ export class RenderService {
       ctx.lineWidth = 1 / viewState.scale;
       ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
     } else {
-      ctx.strokeStyle = isSelected ? this.themeColors.selectionHighlight : (conn.data?.color || this.themeColors.connectionDefault);
-      ctx.lineWidth = (isSelected ? 3 : 2) / viewState.scale;
+      // A COR da linha é sempre a da conexão.
+      ctx.strokeStyle = conn.data?.color || this.themeColors.connectionDefault;
+      // A ESPESSURA aumenta se estiver selecionado.
+      ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
       ctx.setLineDash([]);
     }
 
@@ -389,30 +424,29 @@ export class RenderService {
     if (isGhosted) ctx.setLineDash([]);
 
     if (conn.data?.label && !isGhosted) {
-      const midX = (p0.x + cp1x + cp2x + p3.x) / 4; // Approximate midpoint of Bezier
+      const midX = (p0.x + cp1x + cp2x + p3.x) / 4;
       const midY = (p0.y + cp1y + cp2y + p3.y) / 4;
       ctx.save();
       ctx.translate(midX, midY);
-      // Basic rotation, could be improved for Bezier curves
       const angle = Math.atan2(p3.y - p0.y, p3.x - p0.x);
-      if (angle > Math.PI / 2 || angle < -Math.PI / 2) { // Flip text if upside down
+      if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
         ctx.rotate(angle + Math.PI);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(conn.data.label, 0, 5 / viewState.scale);
+        ctx.fillText(conn.data.label, 0, 5);
       } else {
         ctx.rotate(angle);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(conn.data.label, 0, -5 / viewState.scale);
+        ctx.fillText(conn.data.label, 0, -5);
       }
-      ctx.fillStyle = this.themeColors.nodeTitleText; // Use a readable color
-      ctx.font = `${10 / viewState.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+      ctx.fillStyle = this.themeColors.nodeTitleText;
+      ctx.font = `10px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
       ctx.restore();
     }
   }
 
-  private renderPorts(): void { // Renamed from renderPorts to avoid conflict
+  private renderPorts(): void {
     if (!this.ctx || !this.currentViewState || !this.interactionManager) return;
 
     const nodes = this.nodeManager.getNodes();
@@ -428,12 +462,12 @@ export class RenderService {
 
         // Port label
         this.ctx!.fillStyle = this.themeColors.nodePortText;
-        this.ctx!.font = `${11 / this.currentViewState!.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+        this.ctx!.font = `11px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
         this.ctx!.textAlign = 'left';
         this.ctx!.textBaseline = 'middle';
         const labelText = port.variableName || port.name;
         if (labelText) {
-          this.ctx!.fillText(labelText, portAbsPos.x + (NODE_PORT_SIZE / this.currentViewState!.scale) + (4 / this.currentViewState!.scale), portAbsPos.y);
+          this.ctx!.fillText(labelText, portAbsPos.x + NODE_PORT_SIZE + 4, portAbsPos.y);
         }
       });
 
@@ -443,7 +477,7 @@ export class RenderService {
           this.hoveredCompatiblePortId === port.id || this.hoveredPortIdIdle === port.id);
 
         this.ctx!.fillStyle = this.themeColors.nodePortText;
-        this.ctx!.font = `${11 / this.currentViewState!.scale}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+        this.ctx!.font = `11px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
         this.ctx!.textAlign = 'right';
         this.ctx!.textBaseline = 'middle';
         let labelText = port.name;
@@ -451,7 +485,7 @@ export class RenderService {
           labelText = `${port.name} (${port.outputValue.substring(0, 10)}...)`;
         }
         if (labelText) {
-          this.ctx!.fillText(labelText, portAbsPos.x - (NODE_PORT_SIZE / this.currentViewState!.scale) - (4 / this.currentViewState!.scale), portAbsPos.y);
+          this.ctx!.fillText(labelText, portAbsPos.x - NODE_PORT_SIZE - 4, portAbsPos.y);
         }
       });
     });
