@@ -1,0 +1,288 @@
+/* src/editor/styles/main.css */
+@font-face {
+    font-family: 'Phosphor';
+    src: url('https://unpkg.com/@phosphor-icons/web@2.0.3/bold/phosphor-bold.woff2') format('woff2');
+    /* Ensure this path is correct or hosted locally */
+    font-weight: normal;
+    font-style: normal;
+}
+
+:root {
+    font-family: var(--editor-font-family);
+    line-height: var(--editor-line-height);
+    font-weight: var(--editor-font-weight-normal);
+
+    color-scheme: light dark;
+    /* This might be overridden by specific component styles */
+    color: var(--editor-text-color);
+    background-color: var(--editor-background-color);
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Prevent body scrollbars */
+}
+
+body {
+    display: flex;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+#app {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    display: flex;
+}
+
+.canvas-container {
+    flex: 1;
+    background-color: var(--canvas-background-color);
+    overflow: hidden;
+    position: relative;
+    /* For absolute positioning of canvas and overlays */
+}
+
+.canvas-container canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.node-item,
+.quick-add-item {
+    border-radius: 6px;
+}
+
+.editor-overlay-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* Allows clicks to pass through to the canvas */
+    z-index: 1000;
+    /* Ensures overlays are on top of the canvas but below UI like context menus */
+}
+
+
+/* Palette, Config Panel, Toolbar specific styles will be in their own CSS files if co-located */
+/* Or defined here if kept global */
+
+.node-palette-wrapper {
+    width: 280px;
+    background: var(--ui-panel-background-color);
+    border-right: 1px solid var(--ui-panel-border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 100;
+    /* Ensure palette is above canvas */
+}
+
+.config-panel-wrapper {
+    width: 320px;
+    background: var(--ui-panel-background-color);
+    border-left: 1px solid var(--ui-panel-border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    /* Ensure config panel is above canvas */
+    position: relative;
+    /* For potential absolute positioning of internal elements */
+    transform: translateX(100%);
+    /* Hidden by default */
+    transition: transform 0.3s ease;
+}
+
+.config-panel-wrapper.visible {
+    transform: translateX(0);
+}
+
+
+.toolbar-wrapper {
+    position: absolute;
+    /* Positioned over the canvas container */
+    top: 20px;
+    left: 20px;
+    z-index: 900;
+    /* Above canvas, below overlays if needed */
+}
+
+/* Generic UI elements, can be overridden by component-specific styles */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--editor-text-color-light);
+}
+
+.btn-primary {
+    background: var(--ui-button-primary-background-color);
+}
+
+.btn-primary:hover {
+    background: var(--ui-button-primary-hover-background-color);
+}
+
+.btn-secondary {
+    background: var(--ui-button-secondary-background-color);
+}
+
+.btn-secondary:hover {
+    background: var(--ui-button-secondary-hover-background-color);
+}
+
+.btn-danger {
+    background: var(--ui-button-danger-background-color);
+}
+
+.btn-danger:hover {
+    background: var(--ui-button-danger-hover-background-color);
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--editor-text-color-dark);
+    margin-bottom: 4px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--ui-input-background-color);
+    border: 1px solid var(--ui-input-border-color);
+    border-radius: 4px;
+    color: var(--editor-text-color-light);
+    font-size: 14px;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group input[type="password"]:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--ui-input-focus-border-color);
+    outline: none;
+}
+
+.form-group .error {
+    color: var(--status-error-color);
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+    /* Hidden by default */
+}
+
+.form-group.has-error .error {
+    display: block;
+}
+
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea {
+    border-color: var(--status-error-color);
+}
+
+
+.form-group .help {
+    color: var(--editor-text-color-darker);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    background: var(--ui-input-background-color);
+    border: 1px solid var(--ui-input-border-color);
+    border-radius: 3px;
+}
+
+.color-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-picker input[type="color"] {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.color-picker input[type="text"][data-hex-for] {
+    flex-grow: 1;
+}
+
+.code-editor {
+    height: 150px;
+    /* Default height, can be adjusted */
+    font-family: monospace;
+    resize: vertical;
+    background-color: var(--ui-input-background-color);
+    color: var(--editor-text-color-light);
+    border: 1px solid var(--ui-input-border-color);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.ph {
+    /* Base class for Phosphor icons if using the font directly */
+    font-family: 'Phosphor';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'liga';
+}

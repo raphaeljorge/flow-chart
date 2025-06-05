@@ -1,0 +1,127 @@
+/* src/editor/components/QuickAddMenu/QuickAddMenu.css */
+.editor-quick-add {
+  position: absolute; /* Positioned within its wrapper (e.g., overlay-container) */
+  background: var(--ui-panel-background-color, #2a2a2a);
+  border: 1px solid var(--ui-panel-border-color, #3a3a3a);
+  border-radius: 8px; /* Consistent rounding */
+  padding: 10px; /* Overall padding */
+  width: 320px; /* Default width */
+  z-index: var(--quick-add-menu-z-index, 1100);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  color: var(--editor-text-color-light, #fff);
+  pointer-events: none; /* Initially non-interactable, enabled on show */
+}
+
+.quick-add-input {
+  width: 100%;
+  padding: 10px 12px; /* Comfortable padding */
+  background: var(
+    --ui-input-background-color,
+    #1a1a1a
+  ); /* Darker input background */
+  border: 1px solid var(--ui-input-border-color, #3a3a3a);
+  border-radius: 6px;
+  color: var(--editor-text-color-light, #fff);
+  font-size: 14px;
+  margin-bottom: 10px; /* Space between input and results */
+}
+
+.quick-add-input::placeholder {
+  color: var(--editor-text-color-dark, #888);
+}
+
+.quick-add-input:focus {
+  border-color: var(--ui-input-focus-border-color, #6366f1);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--selection-highlight-color, #6366f1), 0.3); /* Focus ring */
+}
+
+.quick-add-results {
+  max-height: 300px; /* Limit height and allow scrolling */
+  overflow-y: auto;
+  padding-right: 4px; /* Space for scrollbar if it appears */
+}
+
+/* Scrollbar styling for quick-add-results */
+.quick-add-results::-webkit-scrollbar {
+  width: 8px;
+}
+.quick-add-results::-webkit-scrollbar-track {
+  background: transparent; /* Or match menu background */
+}
+.quick-add-results::-webkit-scrollbar-thumb {
+  background-color: var(--ui-element-border-color, #3a3a3a);
+  border-radius: 4px;
+}
+.quick-add-results::-webkit-scrollbar-thumb:hover {
+  background-color: var(--editor-text-color-darker, #666);
+}
+
+.quick-add-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Space between icon and info */
+  border-radius: 4px; /* Rounded corners for items */
+  transition: background-color 0.15s ease;
+}
+
+.quick-add-item:not(.highlighted):hover {
+  /* Hover effect only if not already highlighted by keyboard */
+  background: var(--ui-element-hover-background-color, #3a3a3a);
+}
+
+.quick-add-item.highlighted {
+  background: var(
+    --selection-highlight-color,
+    #4a4a4a
+  ); /* Distinct highlight color */
+  color: var(--editor-text-color-light, #fff);
+}
+.quick-add-item.highlighted .quick-add-item-icon .ph,
+.quick-add-item.highlighted .quick-add-item-title,
+.quick-add-item.highlighted .quick-add-item-category {
+  color: var(
+    --editor-text-color-light,
+    #fff
+  ); /* Ensure text is readable on highlight */
+}
+
+.quick-add-item-icon .ph {
+  font-size: 18px; /* Icon size */
+  color: var(--editor-text-color-medium, #aaa);
+  width: 24px; /* Ensure consistent icon spacing */
+  text-align: center;
+}
+
+.quick-add-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allows text to truncate */
+}
+
+.quick-add-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--editor-text-color-light, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-add-item-category {
+  font-size: 11px; /* Smaller category text */
+  color: var(--editor-text-color-dark, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-add-no-results {
+  padding: 16px 12px; /* More padding for "no results" */
+  color: var(--editor-text-color-dark, #888);
+  font-size: 14px;
+  text-align: center;
+  font-style: italic;
+}

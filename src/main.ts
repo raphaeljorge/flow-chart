@@ -1,87 +1,85 @@
-import './style.css';
-import { NodeEditor } from './editor/NodeEditor'; 
-import '@phosphor-icons/web/regular';
+// src/main.ts
+import './editor/styles/main.css'; // Global styles for the editor
+import './editor/styles/theme-variables.css'; // Theme variables
+import { NodeEditorController } from './editor/app/NodeEditorController';
+import '@phosphor-icons/web/regular'; // Ensure Phosphor icons CSS/font is loaded
 
-const app = document.querySelector<HTMLDivElement>('#app')!;
+const appElement = document.querySelector<HTMLDivElement>('#app');
 
-const editor = new NodeEditor(app, {
+if (!appElement) {
+  throw new Error('Root application element #app not found in the DOM.');
+}
+
+const editorController = new NodeEditorController(appElement, {
   showPalette: true,
   showToolbar: true,
   defaultScale: 1,
   gridSize: 20,
   showGrid: true,
-  snapToGrid: false
+  snapToGrid: false,
+  // nodeDefinitions can be loaded dynamically via PlatformDataService in NodeEditorController
 });
 
-// Adicionar a lógica para os botões de Salvar/Carregar
+// --- Save/Load/Clear Graph Button Logic ---
 const saveGraphBtn = document.getElementById('saveGraphBtn');
 const loadGraphBtn = document.getElementById('loadGraphBtn');
 const clearGraphBtn = document.getElementById('clearGraphBtn');
 
-let currentGraphData: any = null; // Para armazenar o gráfico salvo em memória ou localStorage
-
 if (saveGraphBtn) {
-  saveGraphBtn.addEventListener('click', () => {
-    const graphData = editor.saveGraph();
-    console.log('Graph Saved:', graphData);
-    // Para persistência real, você pode usar localStorage ou enviar para um servidor
-    localStorage.setItem('flowchart_saved_data', JSON.stringify(graphData));
-    currentGraphData = graphData; // Armazena em memória para teste rápido
-    alert('Graph saved to console and localStorage!');
+  saveGraphBtn.addEventListener('click', async () => {
+    try {
+      await editorController.saveGraphToLocalStorage();
+      console.log('Graph Saved to LocalStorage via Controller');
+      alert('Graph saved to LocalStorage!');
+    } catch (error) {
+      console.error('Error saving graph:', error);
+      alert('Failed to save graph.');
+    }
   });
 }
 
 if (loadGraphBtn) {
-  loadGraphBtn.addEventListener('click', () => {
-    // Tenta carregar do localStorage primeiro, senão usa o que está em memória
-    const savedData = localStorage.getItem('flowchart_saved_data');
-    if (savedData) {
-      currentGraphData = JSON.parse(savedData);
-    }
-
-    if (currentGraphData) {
-      editor.loadGraph(currentGraphData);
-      console.log('Graph Loaded:', currentGraphData);
-      alert('Graph loaded!');
-    } else {
-      alert('No saved graph data found!');
+  loadGraphBtn.addEventListener('click', async () => {
+    try {
+      const loaded = await editorController.loadGraphFromLocalStorage();
+      if (loaded) {
+        console.log('Graph Loaded from LocalStorage via Controller');
+        alert('Graph loaded from LocalStorage!');
+      } else {
+        alert('No saved graph data found in LocalStorage.');
+      }
+    } catch (error) {
+      console.error('Error loading graph:', error);
+      alert('Failed to load graph.');
     }
   });
 }
 
 if (clearGraphBtn) {
-    clearGraphBtn.addEventListener('click', () => {
-        // Carga de um grafo vazio para limpar
-        editor.loadGraph({
-            nodes: [],
-            stickyNotes: [],
-            connections: [],
-            viewState: {
-                scale: 1,
-                offset: { x: 0, y: 0 },
-                showGrid: true,
-                snapToGrid: false,
-                gridSize: 20
-            }
-        });
-        currentGraphData = null; // Limpa os dados em memória
-        localStorage.removeItem('flowchart_saved_data'); // Limpa do localStorage
-        alert('Graph cleared!');
+    clearGraphBtn.addEventListener('click', async () => {
+        try {
+            await editorController.clearGraph();
+            alert('Graph cleared!');
+        } catch (error) {
+            console.error('Error clearing graph:', error);
+            alert('Failed to clear graph.');
+        }
     });
 }
 
-// Opcional: Carregar o último grafo salvo automaticamente ao iniciar
-document.addEventListener('DOMContentLoaded', () => {
-    const savedData = localStorage.getItem('flowchart_saved_data');
-    if (savedData) {
-        try {
-            const parsedData = JSON.parse(savedData);
-            editor.loadGraph(parsedData);
-            currentGraphData = parsedData;
-            console.log('Automatically loaded saved graph.');
-        } catch (e) {
-            console.error('Failed to parse saved graph data from localStorage:', e);
-            localStorage.removeItem('flowchart_saved_data'); // Limpa dados corrompidos
+// Optional: Automatically load the last saved graph on startup
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const loaded = await editorController.loadGraphFromLocalStorage();
+        if (loaded) {
+            console.log('Automatically loaded saved graph from LocalStorage.');
         }
+    } catch (e) {
+        console.error('Failed to automatically load graph from LocalStorage:', e);
+        // Optionally clear corrupted data from localStorage
+        // localStorage.removeItem(editorController.getLocalStorageKey());
     }
 });
+
+// Expose editor instance for debugging or external control if needed
+(window as any).editorController = editorController;
