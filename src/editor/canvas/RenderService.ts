@@ -114,29 +114,30 @@ export class RenderService {
   }
 
   private renderResizeHandles(): void {
-    if (!this.ctx || !this.currentViewState) return;
-    const selectedIds = this.selectionManager.getSelectedItems();
-    if (selectedIds.length !== 1) return;
+    // if (!this.ctx || !this.currentViewState) return;
+    // const selectedIds = this.selectionManager.getSelectedItems();
+    // if (selectedIds.length !== 1) return;
 
-    const item = this.interactionManager.findDraggableItemById(selectedIds[0]);
-    if (!item || (item.type !== 'node' && item.type !== 'stickyNote')) return;
+    // const item = this.interactionManager.findDraggableItemById(selectedIds[0]);
+    // if (!item || (item.type !== 'node' && item.type !== 'stickyNote')) return;
 
-    const { x, y } = item.position;
-    const itemWidth = item.width;
-    const itemHeight = item.height;
-    const handleScaledSize = RESIZE_HANDLE_SIZE / this.currentViewState.scale;
+    // const { x, y } = item.position;
+    // const itemWidth = item.width;
+    // const itemHeight = item.height;
+    // const handleScaledSize = RESIZE_HANDLE_SIZE / this.currentViewState.scale;
 
-    this.ctx.fillStyle = this.themeColors.selectionHighlight || '#6366f1';
-    const handlesPoints: Point[] = [
-      { x: x, y: y }, { x: x + itemWidth / 2, y: y }, { x: x + itemWidth, y: y },
-      { x: x, y: y + itemHeight / 2 }, { x: x + itemWidth, y: y + itemHeight / 2 },
-      { x: x, y: y + itemHeight }, { x: x + itemWidth / 2, y: y + itemHeight }, { x: x + itemWidth, y: y + itemHeight },
-    ];
-    handlesPoints.forEach(p => {
-      this.ctx!.beginPath();
-      this.ctx!.arc(p.x, p.y, handleScaledSize / 2, 0, Math.PI * 2);
-      this.ctx!.fill();
-    });
+    // this.ctx.fillStyle = this.themeColors.selectionHighlight || '#6366f1';
+    // const handlesPoints: Point[] = [
+    //   { x: x, y: y }, { x: x + itemWidth / 2, y: y }, { x: x + itemWidth, y: y },
+    //   { x: x, y: y + itemHeight / 2 }, { x: x + itemWidth, y: y + itemHeight / 2 },
+    //   { x: x, y: y + itemHeight }, { x: x + itemWidth / 2, y: y + itemHeight }, { x: x + itemWidth, y: y + itemHeight },
+    // ];
+    // handlesPoints.forEach(p => {
+    //   this.ctx!.beginPath();
+    //   this.ctx!.arc(p.x, p.y, handleScaledSize / 2, 0, Math.PI * 2);
+    //   this.ctx!.fill();
+    // });
+    return;
   }
 
   private renderBoxSelect(): void {

@@ -13,7 +13,7 @@ import {
 import {
     NODE_HEADER_HEIGHT, NODE_PORT_VERTICAL_SPACING, NODE_PORT_HIT_RADIUS,
     CONNECTION_HIT_THRESHOLD, RECONNECT_HANDLE_RADIUS, MIN_NODE_WIDTH, MIN_NODE_HEIGHT,
-    RESIZE_HANDLE_SIZE // <<<---- ENSURED IMPORT IS PRESENT
+    RESIZE_HANDLE_SIZE, RESIZE_BORDER_THRESHOLD
 } from '../core/constants';
 
 type InteractionMode =
@@ -131,6 +131,37 @@ export class InteractionManager {
     return { x: node.position.x + portRelativeX, y: node.position.y + yOffset };
   }
 
+  private getBorderRegionAtPoint(canvasPoint: Point, item: DraggableItem, viewState: ViewState): ResizeHandle['type'] | null {
+    // O limiar de detecção é em pixels da tela, então o convertemos para o "espaço do mundo"
+    const threshold = RESIZE_BORDER_THRESHOLD / viewState.scale;
+    const { x, y } = item.position;
+    const { width, height } = item;
+    const right = x + width;
+    const bottom = y + height;
+
+    const onLeft = Math.abs(canvasPoint.x - x) < threshold;
+    const onRight = Math.abs(canvasPoint.x - right) < threshold;
+    const onTop = Math.abs(canvasPoint.y - y) < threshold;
+    const onBottom = Math.abs(canvasPoint.y - bottom) < threshold;
+
+    const inXRange = canvasPoint.x > x + threshold && canvasPoint.x < right - threshold;
+    const inYRange = canvasPoint.y > y + threshold && canvasPoint.y < bottom - threshold;
+
+    // Verifica os cantos primeiro
+    if (onTop && onLeft) return 'nw';
+    if (onTop && onRight) return 'ne';
+    if (onBottom && onLeft) return 'sw';
+    if (onBottom && onRight) return 'se';
+    
+    // Se não estiver em um canto, verifica os lados
+    if (onTop && inXRange) return 'n';
+    if (onBottom && inXRange) return 's';
+    if (onLeft && inYRange) return 'w';
+    if (onRight && inYRange) return 'e';
+
+    return null; // Não está perto da borda
+  }
+
   public getInteractiveElementAtPoint(canvasPoint: Point): IdentifiedInteractiveElement {
     const currentViewState = this.viewStore.getState();
     const portHitRad = NODE_PORT_HIT_RADIUS / currentViewState.scale;
@@ -138,15 +169,22 @@ export class InteractionManager {
     const reconHandleRadScaled = RECONNECT_HANDLE_RADIUS / currentViewState.scale;
     const selectedIds = this.selectionManager.getSelectedItems();
 
+    // Verifica a interação de redimensionamento PRIMEIRO, pois ela ocorre na borda do item.
     if (selectedIds.length === 1) {
         const selectedItem = this.findDraggableItemById(selectedIds[0]);
         if (selectedItem) {
-            const resizeHandleType = this.getResizeHandleTypeForPoint(canvasPoint, selectedItem, currentViewState);
-            if (resizeHandleType) return { type: 'resizeHandle', item: selectedItem, resizeHandleType, id: selectedItem.id };
+            // Lógica ANTIGA de getResizeHandleTypeForPoint foi substituída por esta:
+            const borderRegion = this.getBorderRegionAtPoint(canvasPoint, selectedItem, currentViewState);
+            if (borderRegion) {
+                // Retorna o mesmo tipo de antes para que o resto da lógica funcione sem alterações.
+                return { type: 'resizeHandle', item: selectedItem, resizeHandleType: borderRegion, id: selectedItem.id };
+            }
         }
     }
 
     const nodes = this.nodeManager.getNodes();
+    // ... O RESTANTE DO MÉTODO CONTINUA EXATAMENTE IGUAL ...
+    // ... (verificação de portas, conexões e corpo dos nós) ...
     for (let i = nodes.length - 1; i >= 0; i--) {
         const node = nodes[i];
         const allPorts = [...node.fixedInputs, ...node.fixedOutputs, ...node.dynamicInputs, ...node.dynamicOutputs];
