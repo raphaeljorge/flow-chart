@@ -1,41 +1,68 @@
 // src/editor/app/NodeEditorController.ts
-import { EventEmitter } from 'eventemitter3';
+import { EventEmitter } from "eventemitter3";
 import {
-    NodeEditorOptions, Node, Point, NodeDefinition, CanvasPointerEvent, Rect, StickyNote,
-    Connection, ConfigurableItem, ConfigurableItemType, GraphState, ClipboardItem
-} from '../core/types';
+  NodeEditorOptions,
+  Node,
+  Point,
+  NodeDefinition,
+  CanvasPointerEvent,
+  Rect,
+  StickyNote,
+  Connection,
+  ConfigurableItem,
+  ConfigurableItemType,
+  GraphState,
+  ClipboardItem,
+} from "../core/types";
 import {
-    EVENT_VIEW_CHANGED, EVENT_SELECTION_CHANGED, EVENT_HISTORY_CHANGED,
-    EVENT_CLIPBOARD_CHANGED, LOCAL_STORAGE_GRAPH_KEY, ALL_NODE_DEFINITIONS as FALLBACK_NODE_DEFINITIONS,
-    EVENT_CONFIG_APPLIED,
-    EVENT_NODE_TEST_REQUESTED,
-    EVENT_NODE_DATA_CHANGED_WITH_VARIABLES,
-} from '../core/constants';
+  EVENT_VIEW_CHANGED,
+  EVENT_SELECTION_CHANGED,
+  EVENT_HISTORY_CHANGED,
+  EVENT_CLIPBOARD_CHANGED,
+  LOCAL_STORAGE_GRAPH_KEY,
+  ALL_NODE_DEFINITIONS as FALLBACK_NODE_DEFINITIONS,
+  EVENT_CONFIG_APPLIED,
+  EVENT_NODE_TEST_REQUESTED,
+  EVENT_NODE_DATA_CHANGED_WITH_VARIABLES,
+} from "../core/constants";
 
-import { CanvasEngine } from '../canvas/CanvasEngine';
-import { RenderService } from '../canvas/RenderService';
+import { CanvasEngine } from "../canvas/CanvasEngine";
+import { RenderService } from "../canvas/RenderService";
 
-import { NodeManager } from '../state/NodeManager';
-import { ConnectionManager } from '../state/ConnectionManager';
-import { StickyNoteManager } from '../state/StickyNoteManager';
-import { SelectionManager } from '../state/SelectionManager';
-import { ClipboardManager, ClipboardableItemType } from '../state/ClipboardManager';
-import { HistoryManager } from '../state/HistoryManager';
-import { ViewStore } from '../state/ViewStore';
+import { NodeManager } from "../state/NodeManager";
+import { ConnectionManager } from "../state/ConnectionManager";
+import { StickyNoteManager } from "../state/StickyNoteManager";
+import { SelectionManager } from "../state/SelectionManager";
+import {
+  ClipboardManager,
+  ClipboardableItemType,
+} from "../state/ClipboardManager";
+import { HistoryManager } from "../state/HistoryManager";
+import { ViewStore } from "../state/ViewStore";
 
-import { InteractionManager, PendingConnectionState } from '../interaction/InteractionManager';
-import { ShortcutManager } from '../interaction/ShortcutManager';
-import { DndController } from '../interaction/DndController';
+import {
+  InteractionManager,
+  PendingConnectionState,
+} from "../interaction/InteractionManager";
+import { ShortcutManager } from "../interaction/ShortcutManager";
+import { DndController } from "../interaction/DndController";
 
-import { EditorIconService } from '../services/EditorIconService';
-import { PlatformDataService } from '../services/PlatformDataService';
+import { EditorIconService } from "../services/EditorIconService";
+import { PlatformDataService } from "../services/PlatformDataService";
 
-import { NodePalette } from '../components/NodePalette/NodePalette';
-import { ConfigPanel } from '../components/ConfigPanel/ConfigPanel';
-import { Toolbar, ToolbarButtonDefinition } from '../components/Toolbar/Toolbar';
-import { ContextMenu, ContextMenuItemAction, ContextMenuContext } from '../components/ContextMenu/ContextMenu';
-import { QuickAddMenu } from '../components/QuickAddMenu/QuickAddMenu';
-import { Tooltip, TooltipContent } from '../components/Tooltip/Tooltip';
+import { NodePalette } from "../components/NodePalette/NodePalette";
+import { ConfigPanel } from "../components/ConfigPanel/ConfigPanel";
+import {
+  Toolbar,
+  ToolbarButtonDefinition,
+} from "../components/Toolbar/Toolbar";
+import {
+  ContextMenu,
+  ContextMenuItemAction,
+  ContextMenuContext,
+} from "../components/ContextMenu/ContextMenu";
+import { QuickAddMenu } from "../components/QuickAddMenu/QuickAddMenu";
+import { Tooltip, TooltipContent } from "../components/Tooltip/Tooltip";
 
 export class NodeEditorController {
   private container: HTMLElement;
@@ -75,462 +102,924 @@ export class NodeEditorController {
 
   private availableNodeDefinitions: NodeDefinition[] = [];
 
-
-  constructor(container: HTMLElement, options: Partial<NodeEditorOptions> = {}) {
+  constructor(
+    container: HTMLElement,
+    options: Partial<NodeEditorOptions> = {}
+  ) {
     this.container = container;
     this.options = {
-      showPalette: true, showToolbar: true, defaultScale: 1, gridSize: 20,
-      showGrid: true, snapToGrid: false, nodeDefinitions: [], ...options,
+      showPalette: true,
+      showToolbar: true,
+      defaultScale: 1,
+      gridSize: 20,
+      showGrid: true,
+      snapToGrid: false,
+      nodeDefinitions: [],
+      ...options,
     };
     this.events = new EventEmitter();
     this.validateContainer();
+
     this.setupDOMStructure();
+
     this.iconService = new EditorIconService();
     this.platformDataService = new PlatformDataService();
-    this.viewStore = new ViewStore({ /* ... initial view state ... */ });
+    this.viewStore = new ViewStore({
+      /* ... initial view state ... */
+    });
+
     this.nodeManager = new NodeManager();
     this.connectionManager = new ConnectionManager(this.nodeManager);
     this.stickyNoteManager = new StickyNoteManager();
     this.selectionManager = new SelectionManager();
     this.clipboardManager = new ClipboardManager();
     this.historyManager = new HistoryManager();
+
     if (!this.canvasWrapper) throw new Error("Canvas wrapper not initialized.");
     this.canvasEngine = new CanvasEngine(this.canvasWrapper, this.viewStore);
+
     this.interactionManager = new InteractionManager(
-      this.canvasEngine, this.viewStore, this.nodeManager, this.connectionManager,
-      this.stickyNoteManager, this.selectionManager
+      this.canvasEngine,
+      this.viewStore,
+      this.nodeManager,
+      this.connectionManager,
+      this.stickyNoteManager,
+      this.selectionManager
     );
+
     this.shortcutManager = new ShortcutManager(this.container);
+
     this.dndController = new DndController(
-        this.canvasEngine, this.viewStore, this.nodeManager, this.stickyNoteManager, this.selectionManager,
-        (id: string) => this.availableNodeDefinitions.find(def => def.id === id)
+      this.canvasEngine,
+      this.viewStore,
+      this.nodeManager,
+      this.stickyNoteManager,
+      this.selectionManager,
+      (id: string) => this.availableNodeDefinitions.find((def) => def.id === id)
     );
+
     this.renderService = new RenderService(
-      this.canvasEngine, this.nodeManager, this.connectionManager, this.stickyNoteManager,
-      this.selectionManager, this.interactionManager, this.viewStore
+      this.canvasEngine,
+      this.nodeManager,
+      this.connectionManager,
+      this.stickyNoteManager,
+      this.selectionManager,
+      this.interactionManager,
+      this.viewStore
     );
+
     this.initializeUIComponents();
+
     this.wireUpCoreEvents();
     this.wireUpShortcuts();
     this.loadInitialNodeDefinitions().then(() => {
-        this.recordInitialHistoryState();
-        this.canvasEngine.requestRender();
-        console.log('NodeEditorController initialized.');
-        this.events.emit('ready');
+      this.recordInitialHistoryState();
+      this.canvasEngine.requestRender();
+      console.log("NodeEditorController initialized.");
+      this.events.emit("ready");
     });
   }
 
   private validateContainer(): void {
-    if (!this.container) throw new Error('NodeEditorController: Container element not found.');
+    if (!this.container)
+      throw new Error("NodeEditorController: Container element not found.");
   }
 
   private setupDOMStructure(): void {
-    this.container.innerHTML = ''; this.container.style.display = 'flex';
-    this.container.style.width = '100%'; this.container.style.height = '100%';
-    this.container.style.position = 'relative';
-    if (this.options.showPalette) {
-      this.paletteWrapper = document.createElement('div');
-      this.paletteWrapper.className = 'node-palette-wrapper';
-      this.container.appendChild(this.paletteWrapper);
-    }
-    this.canvasWrapper = document.createElement('div');
-    this.canvasWrapper.className = 'canvas-container';
+    // A estrutura do DOM é simplificada. O 'container' principal pode ser apenas para o canvas
+    // se os painéis forem externos (criados no React).
+    this.container.innerHTML = "";
+    this.container.style.position = "relative";
+    this.container.style.width = "100%";
+    this.container.style.height = "100%";
+
+    // O canvas sempre é criado dentro do container principal fornecido.
+    this.canvasWrapper = document.createElement("div");
+    this.canvasWrapper.className = "canvas-container";
     this.container.appendChild(this.canvasWrapper);
-    this.configPanelWrapper = document.createElement('div');
-    this.configPanelWrapper.className = 'config-panel-wrapper';
-    this.container.appendChild(this.configPanelWrapper);
+
+    // Os wrappers dos painéis só são criados se as opções estiverem habilitadas.
+    // Na sua aplicação React, você não os criará, mas a biblioteca ainda suporta.
+    if (this.options.showPalette) {
+      this.paletteWrapper = document.createElement("div");
+      this.paletteWrapper.className = "node-palette-wrapper";
+      this.container.prepend(this.paletteWrapper); // Adiciona no início
+    }
+
+    if (this.options.showConfigPanel) {
+      this.configPanelWrapper = document.createElement("div");
+      this.configPanelWrapper.className = "config-panel-wrapper";
+      this.container.appendChild(this.configPanelWrapper);
+    }
+
     if (this.options.showToolbar && this.canvasWrapper) {
-      this.toolbarWrapper = document.createElement('div');
-      this.toolbarWrapper.className = 'toolbar-wrapper';
+      this.toolbarWrapper = document.createElement("div");
+      this.toolbarWrapper.className = "toolbar-wrapper";
       this.canvasWrapper.appendChild(this.toolbarWrapper);
     }
-    this.overlayWrapper = document.createElement('div');
-    this.overlayWrapper.className = 'editor-overlay-container';
-    this.container.appendChild(this.overlayWrapper);
+
+    // A camada de overlay é sempre necessária para menus de contexto, etc.
+    this.overlayWrapper = document.createElement("div");
+    this.overlayWrapper.className = "editor-overlay-container";
+    this.canvasWrapper.appendChild(this.overlayWrapper); // Anexado ao wrapper do canvas
   }
 
   private async loadInitialNodeDefinitions(): Promise<void> {
-      try {
-          this.availableNodeDefinitions = await this.platformDataService.getNodeDefinitions();
-      } catch (error) {
-          console.error("Failed to load node definitions, using fallback:", error);
-          this.availableNodeDefinitions = FALLBACK_NODE_DEFINITIONS.map(pd => ({
-              id: pd.id, title: pd.title, description: pd.description, category: pd.category,
-              icon: pd.icon, config: pd.config, defaultWidth: pd.defaultWidth, defaultHeight: pd.defaultHeight,
-              minWidth: pd.minWidth, minHeight: pd.minHeight,
-              defaultInputs: pd.defaultInputs?.map(i => ({...i})),
-              defaultOutputs: pd.defaultOutputs?.map(o => ({...o}))
-          }));
-      }
-      this.nodePalette?.updateNodeDefinitions(this.availableNodeDefinitions);
-      this.quickAddMenu?.updateNodeDefinitions(this.availableNodeDefinitions);
+    try {
+      this.availableNodeDefinitions =
+        await this.platformDataService.getNodeDefinitions();
+    } catch (error) {
+      console.error("Failed to load node definitions, using fallback:", error);
+      this.availableNodeDefinitions = FALLBACK_NODE_DEFINITIONS.map((pd) => ({
+        id: pd.id,
+        title: pd.title,
+        description: pd.description,
+        category: pd.category,
+        icon: pd.icon,
+        config: pd.config,
+        defaultWidth: pd.defaultWidth,
+        defaultHeight: pd.defaultHeight,
+        minWidth: pd.minWidth,
+        minHeight: pd.minHeight,
+        defaultInputs: pd.defaultInputs?.map((i) => ({ ...i })),
+        defaultOutputs: pd.defaultOutputs?.map((o) => ({ ...o })),
+      }));
+    }
+    this.nodePalette?.updateNodeDefinitions(this.availableNodeDefinitions);
+    this.quickAddMenu?.updateNodeDefinitions(this.availableNodeDefinitions);
   }
 
   private initializeUIComponents(): void {
     if (this.options.showPalette && this.paletteWrapper) {
-      this.nodePalette = new NodePalette(this.paletteWrapper, { nodeDefinitions: this.availableNodeDefinitions }, this.iconService);
+      this.nodePalette = new NodePalette(
+        this.paletteWrapper,
+        { nodeDefinitions: this.availableNodeDefinitions },
+        this.iconService
+      );
     }
     if (this.configPanelWrapper) {
-      this.configPanel = new ConfigPanel(this.configPanelWrapper, this.selectionManager, this.nodeManager, this.connectionManager, this.stickyNoteManager, this.iconService);
+      this.configPanel = new ConfigPanel(
+        this.configPanelWrapper,
+        this.selectionManager,
+        this.nodeManager,
+        this.connectionManager,
+        this.stickyNoteManager,
+        this.iconService
+      );
     }
     if (this.options.showToolbar && this.toolbarWrapper) {
       this.toolbar = new Toolbar(this.toolbarWrapper, this.iconService);
       this.initializeToolbarButtons();
     }
     if (this.overlayWrapper) {
-        this.contextMenu = new ContextMenu(this.overlayWrapper, this.iconService);
-        this.quickAddMenu = new QuickAddMenu(this.overlayWrapper, { nodeDefinitions: this.availableNodeDefinitions }, this.iconService);
-        this.tooltip = new Tooltip(this.overlayWrapper);
+      this.contextMenu = new ContextMenu(this.overlayWrapper, this.iconService);
+      this.quickAddMenu = new QuickAddMenu(
+        this.overlayWrapper,
+        { nodeDefinitions: this.availableNodeDefinitions },
+        this.iconService
+      );
+      this.tooltip = new Tooltip(this.overlayWrapper);
     }
   }
 
   private initializeToolbarButtons(): void {
     if (!this.toolbar) return;
     this.toolbar.addButton({
-      id: 'undo', title: 'Undo (Ctrl+Z)', iconName: 'ph-arrow-counter-clockwise',
-      action: () => this.handleUndo(), disabled: () => !this.historyManager.canUndo()
+      id: "undo",
+      title: "Undo (Ctrl+Z)",
+      iconName: "ph-arrow-counter-clockwise",
+      action: () => this.handleUndo(),
+      disabled: () => !this.historyManager.canUndo(),
     });
     this.toolbar.addButton({
-      id: 'redo', title: 'Redo (Ctrl+Y)', iconName: 'ph-arrow-clockwise',
-      action: () => this.handleRedo(), disabled: () => !this.historyManager.canRedo()
-    });
-    this.toolbar.addSeparator();
-    this.toolbar.addButton({
-      id: 'toggle-grid', title: 'Toggle Grid (G)', iconName: 'ph-grid-four', isToggle: true,
-      action: () => this.viewStore.toggleGrid(), isActive: () => this.viewStore.getState().showGrid
-    });
-    this.toolbar.addButton({
-      id: 'toggle-snap', title: 'Toggle Snap (S)', iconName: 'ph-magnet', isToggle: true,
-      action: () => this.viewStore.toggleSnapToGrid(), isActive: () => this.viewStore.getState().snapToGrid
+      id: "redo",
+      title: "Redo (Ctrl+Y)",
+      iconName: "ph-arrow-clockwise",
+      action: () => this.handleRedo(),
+      disabled: () => !this.historyManager.canRedo(),
     });
     this.toolbar.addSeparator();
     this.toolbar.addButton({
-      id: 'zoom-to-fit', title: 'Zoom to Fit (F)', iconName: 'ph-arrows-out',
-      action: () => this.zoomToFitContent()
+      id: "toggle-grid",
+      title: "Toggle Grid (G)",
+      iconName: "ph-grid-four",
+      isToggle: true,
+      action: () => this.viewStore.toggleGrid(),
+      isActive: () => this.viewStore.getState().showGrid,
     });
     this.toolbar.addButton({
-      id: 'zoom-to-selection', title: 'Zoom to Selection (Shift+F)', iconName: 'ph-magnifying-glass',
-      action: () => this.zoomToSelection(), disabled: () => this.selectionManager.getSelectionCount() === 0
+      id: "toggle-snap",
+      title: "Toggle Snap (S)",
+      iconName: "ph-magnet",
+      isToggle: true,
+      action: () => this.viewStore.toggleSnapToGrid(),
+      isActive: () => this.viewStore.getState().snapToGrid,
+    });
+    this.toolbar.addSeparator();
+    this.toolbar.addButton({
+      id: "zoom-to-fit",
+      title: "Zoom to Fit (F)",
+      iconName: "ph-arrows-out",
+      action: () => this.zoomToFitContent(),
     });
     this.toolbar.addButton({
-      id: 'reset-view', title: 'Reset View (R)', iconName: 'ph-arrows-in',
-      action: () => this.viewStore.resetView()
+      id: "zoom-to-selection",
+      title: "Zoom to Selection (Shift+F)",
+      iconName: "ph-magnifying-glass",
+      action: () => this.zoomToSelection(),
+      disabled: () => this.selectionManager.getSelectionCount() === 0,
+    });
+    this.toolbar.addButton({
+      id: "reset-view",
+      title: "Reset View (R)",
+      iconName: "ph-arrows-in",
+      action: () => this.viewStore.resetView(),
     });
     this.toolbar.refreshButtonStates();
   }
 
   private wireUpCoreEvents(): void {
-    this.viewStore.on(EVENT_VIEW_CHANGED, () => this.toolbar?.refreshButtonStates());
-    this.historyManager.on(EVENT_HISTORY_CHANGED, () => this.toolbar?.refreshButtonStates());
-    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () => this.toolbar?.refreshButtonStates());
-    this.selectionManager.on(EVENT_SELECTION_CHANGED, () => this.toolbar?.refreshButtonStates());
-    this.interactionManager.on('canvasContextMenu', this.handleCanvasContextMenu);
-    this.interactionManager.on('canvasDoubleClick', this.handleCanvasDoubleClick);
+    this.viewStore.on(EVENT_VIEW_CHANGED, () =>
+      this.toolbar?.refreshButtonStates()
+    );
+    this.historyManager.on(EVENT_HISTORY_CHANGED, () =>
+      this.toolbar?.refreshButtonStates()
+    );
+    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () =>
+      this.toolbar?.refreshButtonStates()
+    );
+    this.selectionManager.on(EVENT_SELECTION_CHANGED, () =>
+      this.toolbar?.refreshButtonStates()
+    );
+    this.interactionManager.on(
+      "canvasContextMenu",
+      this.handleCanvasContextMenu
+    );
+    this.interactionManager.on(
+      "canvasDoubleClick",
+      this.handleCanvasDoubleClick
+    );
 
     const makeHistoryCheckpoint = () => {
-        // Use the public getter from HistoryManager
-        if (!this.historyManager.isRestoringState()) {
-            this.historyManager.push(this.getCurrentGraphState());
-        }
+      // Use the public getter from HistoryManager
+      if (!this.historyManager.isRestoringState()) {
+        this.historyManager.push(this.getCurrentGraphState());
+      }
     };
 
-    this.nodeManager.on('nodeCreated', makeHistoryCheckpoint);
-    this.nodeManager.on('nodeMoved', makeHistoryCheckpoint);
-    this.nodeManager.on('nodeResized', makeHistoryCheckpoint);
-    this.nodeManager.on('nodeDeleted', makeHistoryCheckpoint);
-    this.nodeManager.on('nodesDeleted', makeHistoryCheckpoint);
-    this.nodeManager.on('portAdded', makeHistoryCheckpoint);
-    this.nodeManager.on('portRemoved', makeHistoryCheckpoint);
-    this.nodeManager.on('portUpdated', makeHistoryCheckpoint);
-    this.nodeManager.on('nodeDataUpdated', makeHistoryCheckpoint);
-    this.connectionManager.on('connectionCreated', makeHistoryCheckpoint);
-    this.connectionManager.on('connectionDeleted', makeHistoryCheckpoint);
-    this.connectionManager.on('connectionUpdated', makeHistoryCheckpoint);
-    this.stickyNoteManager.on('noteCreated', makeHistoryCheckpoint);
-    this.stickyNoteManager.on('noteUpdated', makeHistoryCheckpoint);
-    this.stickyNoteManager.on('noteDeleted', makeHistoryCheckpoint);
-    
+    this.nodeManager.on("nodeCreated", makeHistoryCheckpoint);
+    this.nodeManager.on("nodeMoved", makeHistoryCheckpoint);
+    this.nodeManager.on("nodeResized", makeHistoryCheckpoint);
+    this.nodeManager.on("nodeDeleted", makeHistoryCheckpoint);
+    this.nodeManager.on("nodesDeleted", makeHistoryCheckpoint);
+    this.nodeManager.on("portAdded", makeHistoryCheckpoint);
+    this.nodeManager.on("portRemoved", makeHistoryCheckpoint);
+    this.nodeManager.on("portUpdated", makeHistoryCheckpoint);
+    this.nodeManager.on("nodeDataUpdated", makeHistoryCheckpoint);
+    this.connectionManager.on("connectionCreated", makeHistoryCheckpoint);
+    this.connectionManager.on("connectionDeleted", makeHistoryCheckpoint);
+    this.connectionManager.on("connectionUpdated", makeHistoryCheckpoint);
+    this.stickyNoteManager.on("noteCreated", makeHistoryCheckpoint);
+    this.stickyNoteManager.on("noteUpdated", makeHistoryCheckpoint);
+    this.stickyNoteManager.on("noteDeleted", makeHistoryCheckpoint);
+
     let tooltipHoverTimeout: number | null = null;
-    this.interactionManager.on('elementHoverStart', (elementInfo: {type: InteractiveElementType, id?: string, item?: any, portDetails?: NodePort, connectionDetails?: Connection}, clientPoint: Point) => {
-        if(tooltipHoverTimeout) clearTimeout(tooltipHoverTimeout);
+    this.interactionManager.on(
+      "elementHoverStart",
+      (
+        elementInfo: {
+          type: InteractiveElementType;
+          id?: string;
+          item?: any;
+          portDetails?: NodePort;
+          connectionDetails?: Connection;
+        },
+        clientPoint: Point
+      ) => {
+        if (tooltipHoverTimeout) clearTimeout(tooltipHoverTimeout);
         tooltipHoverTimeout = window.setTimeout(() => {
-            let content: TooltipContent | null = null;
-            if (elementInfo.type === 'node' && elementInfo.item) {
-                const n = this.nodeManager.getNode(elementInfo.item.id);
-                if (n) content = { title: n.title, type: n.type, description: n.description, id: n.id.slice(0,8) };
-            } else if (elementInfo.type === 'stickyNote' && elementInfo.item) {
-                const n = this.stickyNoteManager.getNote(elementInfo.item.id);
-                if (n) content = { title: "Sticky Note", description: n.content.substring(0,100)+(n.content.length>100?'...':''), id: n.id.slice(0,8) };
-            } else if (elementInfo.type === 'connection' && elementInfo.connectionDetails) {
-                const c = elementInfo.connectionDetails;
-                const sP = this.nodeManager.getPort(c.sourcePortId); const tP = this.nodeManager.getPort(c.targetPortId);
-                content = {title: c.data?.label || "Connection", description: `From: ${sP?.name||'?'} To: ${tP?.name||'?'}`, id: c.id.slice(0,8)};
-            } else if (elementInfo.type === 'port' && elementInfo.portDetails) {
-                const p = elementInfo.portDetails;
-                content = {title: p.name, type: `${p.type} port (${p.isDynamic ? 'dynamic' : 'fixed'})`, description: p.description, id: p.id.slice(0,8) };
-            }
-            if(content && this.tooltip) this.tooltip.scheduleShow(clientPoint, content);
+          let content: TooltipContent | null = null;
+          if (elementInfo.type === "node" && elementInfo.item) {
+            const n = this.nodeManager.getNode(elementInfo.item.id);
+            if (n)
+              content = {
+                title: n.title,
+                type: n.type,
+                description: n.description,
+                id: n.id.slice(0, 8),
+              };
+          } else if (elementInfo.type === "stickyNote" && elementInfo.item) {
+            const n = this.stickyNoteManager.getNote(elementInfo.item.id);
+            if (n)
+              content = {
+                title: "Sticky Note",
+                description:
+                  n.content.substring(0, 100) +
+                  (n.content.length > 100 ? "..." : ""),
+                id: n.id.slice(0, 8),
+              };
+          } else if (
+            elementInfo.type === "connection" &&
+            elementInfo.connectionDetails
+          ) {
+            const c = elementInfo.connectionDetails;
+            const sP = this.nodeManager.getPort(c.sourcePortId);
+            const tP = this.nodeManager.getPort(c.targetPortId);
+            content = {
+              title: c.data?.label || "Connection",
+              description: `From: ${sP?.name || "?"} To: ${tP?.name || "?"}`,
+              id: c.id.slice(0, 8),
+            };
+          } else if (elementInfo.type === "port" && elementInfo.portDetails) {
+            const p = elementInfo.portDetails;
+            content = {
+              title: p.name,
+              type: `${p.type} port (${p.isDynamic ? "dynamic" : "fixed"})`,
+              description: p.description,
+              id: p.id.slice(0, 8),
+            };
+          }
+          if (content && this.tooltip)
+            this.tooltip.scheduleShow(clientPoint, content);
         }, 500);
-    });
-     this.interactionManager.on('elementHoverEnd', () => {
-        if(tooltipHoverTimeout) clearTimeout(tooltipHoverTimeout);
-        this.tooltip?.hide();
+      }
+    );
+    this.interactionManager.on("elementHoverEnd", () => {
+      if (tooltipHoverTimeout) clearTimeout(tooltipHoverTimeout);
+      this.tooltip?.hide();
     });
 
-    this.quickAddMenu?.on('itemSelected', this.handleQuickAddItemChosen);
-    this.contextMenu?.on('itemClicked', this.handleContextMenuItemClicked);
-    this.dndController.on('itemDropped', (item: Node | StickyNote) => this.events.emit('itemAdded', item));
+    this.quickAddMenu?.on("itemSelected", this.handleQuickAddItemChosen);
+    this.contextMenu?.on("itemClicked", this.handleContextMenuItemClicked);
+    this.dndController.on("itemDropped", (item: Node | StickyNote) =>
+      this.events.emit("itemAdded", item)
+    );
     this.configPanel?.on(EVENT_CONFIG_APPLIED, (item: ConfigurableItem) => {
-        this.events.emit('itemConfigApplied', item);
-        if (this.configPanel && this.selectionManager.getSingleSelectedItem() === item.id) {
-            const itemType = item.hasOwnProperty('fixedInputs') ? 'node' : (item.hasOwnProperty('content') ? 'stickyNote' : 'connection');
-            this.configPanel.show(item, itemType as ConfigurableItemType);
-        }
-        makeHistoryCheckpoint();
+      this.events.emit("itemConfigApplied", item);
+      if (
+        this.configPanel &&
+        this.selectionManager.getSingleSelectedItem() === item.id
+      ) {
+        const itemType = item.hasOwnProperty("fixedInputs")
+          ? "node"
+          : item.hasOwnProperty("content")
+          ? "stickyNote"
+          : "connection";
+        this.configPanel.show(item, itemType as ConfigurableItemType);
+      }
+      makeHistoryCheckpoint();
     });
-    this.configPanel?.on(EVENT_NODE_TEST_REQUESTED, (node: Node) => this.events.emit('testNodeRequested', node));
-    this.configPanel?.on(EVENT_NODE_DATA_CHANGED_WITH_VARIABLES, (event: { nodeId: string, newData: any, oldData: any }) => {
-        this.nodeManager.updateNodeDataAndParseVariables(event.nodeId, event.newData, event.oldData);
-    });
+    this.configPanel?.on(EVENT_NODE_TEST_REQUESTED, (node: Node) =>
+      this.events.emit("testNodeRequested", node)
+    );
+    this.configPanel?.on(
+      EVENT_NODE_DATA_CHANGED_WITH_VARIABLES,
+      (event: { nodeId: string; newData: any; oldData: any }) => {
+        this.nodeManager.updateNodeDataAndParseVariables(
+          event.nodeId,
+          event.newData,
+          event.oldData
+        );
+      }
+    );
   }
 
   private wireUpShortcuts(): void {
-    this.shortcutManager.on('copy', this.handleCopy);
-    this.shortcutManager.on('paste', this.handlePaste);
-    this.shortcutManager.on('cut', this.handleCut);
-    this.shortcutManager.on('delete', this.handleDelete);
-    this.shortcutManager.on('undo', this.handleUndo);
-    this.shortcutManager.on('redo', this.handleRedo);
-    this.shortcutManager.on('selectAll', this.handleSelectAll);
-    this.shortcutManager.on('escape', this.handleEscape);
-    this.shortcutManager.on('toggleGrid', () => this.viewStore.toggleGrid());
-    this.shortcutManager.on('toggleSnapToGrid', () => this.viewStore.toggleSnapToGrid());
-    this.shortcutManager.on('zoomToFit', () => this.zoomToFitContent());
-    this.shortcutManager.on('zoomToSelection', () => this.zoomToSelection());
-    this.shortcutManager.on('resetView', () => this.viewStore.resetView());
+    this.shortcutManager.on("copy", this.handleCopy);
+    this.shortcutManager.on("paste", this.handlePaste);
+    this.shortcutManager.on("cut", this.handleCut);
+    this.shortcutManager.on("delete", this.handleDelete);
+    this.shortcutManager.on("undo", this.handleUndo);
+    this.shortcutManager.on("redo", this.handleRedo);
+    this.shortcutManager.on("selectAll", this.handleSelectAll);
+    this.shortcutManager.on("escape", this.handleEscape);
+    this.shortcutManager.on("toggleGrid", () => this.viewStore.toggleGrid());
+    this.shortcutManager.on("toggleSnapToGrid", () =>
+      this.viewStore.toggleSnapToGrid()
+    );
+    this.shortcutManager.on("zoomToFit", () => this.zoomToFitContent());
+    this.shortcutManager.on("zoomToSelection", () => this.zoomToSelection());
+    this.shortcutManager.on("resetView", () => this.viewStore.resetView());
   }
 
   private handleCopy = (): void => {
-    const selectedIds = this.selectionManager.getSelectedItems(); if (selectedIds.length === 0) return;
-    const itemsToCopy: Array<{ originalId: string, type: ClipboardableItemType, data: Node | StickyNote }> = [];
-    selectedIds.forEach(id => {
-      const node = this.nodeManager.getNode(id); if (node) itemsToCopy.push({ originalId: id, type: 'node', data: node });
-      else { const stickyNote = this.stickyNoteManager.getNote(id); if (stickyNote) itemsToCopy.push({ originalId: id, type: 'stickyNote', data: stickyNote });}
+    const selectedIds = this.selectionManager.getSelectedItems();
+    if (selectedIds.length === 0) return;
+    const itemsToCopy: Array<{
+      originalId: string;
+      type: ClipboardableItemType;
+      data: Node | StickyNote;
+    }> = [];
+    selectedIds.forEach((id) => {
+      const node = this.nodeManager.getNode(id);
+      if (node) itemsToCopy.push({ originalId: id, type: "node", data: node });
+      else {
+        const stickyNote = this.stickyNoteManager.getNote(id);
+        if (stickyNote)
+          itemsToCopy.push({
+            originalId: id,
+            type: "stickyNote",
+            data: stickyNote,
+          });
+      }
     });
-    if (itemsToCopy.length > 0) { this.clipboardManager.copy(itemsToCopy); this.events.emit('itemsCopied', itemsToCopy); }
+    if (itemsToCopy.length > 0) {
+      this.clipboardManager.copy(itemsToCopy);
+      this.events.emit("itemsCopied", itemsToCopy);
+    }
   };
 
   private handlePaste = (): void => {
     if (!this.clipboardManager.canPaste()) return;
     const pasteCenterCanvas = this.canvasEngine.getClientToCanvasCoordinates({
-        x: this.canvasEngine.getCanvasElement().width / 2, y: this.canvasEngine.getCanvasElement().height / 2
+      x: this.canvasEngine.getCanvasElement().width / 2,
+      y: this.canvasEngine.getCanvasElement().height / 2,
     });
-    const itemsToPaste = this.clipboardManager.preparePasteData(pasteCenterCanvas);
+    const itemsToPaste =
+      this.clipboardManager.preparePasteData(pasteCenterCanvas);
     const newPastedItemIds: string[] = [];
-    itemsToPaste.forEach(clipboardItem => {
-      let pastedItem: Node | StickyNote | null = null; const { type, data } = clipboardItem;
-      if (type === 'node') {
-        const nodeData = data as Node; const definition = this.availableNodeDefinitions.find(def => def.id === nodeData.type);
+    itemsToPaste.forEach((clipboardItem) => {
+      let pastedItem: Node | StickyNote | null = null;
+      const { type, data } = clipboardItem;
+      if (type === "node") {
+        const nodeData = data as Node;
+        const definition = this.availableNodeDefinitions.find(
+          (def) => def.id === nodeData.type
+        );
         if (definition) {
-            pastedItem = this.nodeManager.createNodeFromDefinition(definition, nodeData.position);
-            this.nodeManager.updateNode(pastedItem.id, {
-                title: nodeData.title, width: nodeData.width, height: nodeData.height,
-                dynamicInputs: JSON.parse(JSON.stringify(nodeData.dynamicInputs || [])),
-                dynamicOutputs: JSON.parse(JSON.stringify(nodeData.dynamicOutputs || [])),
-                data: JSON.parse(JSON.stringify(nodeData.data || {})), status: 'unsaved'
-            });
+          pastedItem = this.nodeManager.createNodeFromDefinition(
+            definition,
+            nodeData.position
+          );
+          this.nodeManager.updateNode(pastedItem.id, {
+            title: nodeData.title,
+            width: nodeData.width,
+            height: nodeData.height,
+            dynamicInputs: JSON.parse(
+              JSON.stringify(nodeData.dynamicInputs || [])
+            ),
+            dynamicOutputs: JSON.parse(
+              JSON.stringify(nodeData.dynamicOutputs || [])
+            ),
+            data: JSON.parse(JSON.stringify(nodeData.data || {})),
+            status: "unsaved",
+          });
         }
-      } else if (type === 'stickyNote') {
+      } else if (type === "stickyNote") {
         const noteData = data as StickyNote;
-        pastedItem = this.stickyNoteManager.createNote(noteData.position, noteData.content, noteData.width, noteData.height);
+        pastedItem = this.stickyNoteManager.createNote(
+          noteData.position,
+          noteData.content,
+          noteData.width,
+          noteData.height
+        );
         this.stickyNoteManager.updateNoteStyle(pastedItem.id, noteData.style);
       }
       if (pastedItem) newPastedItemIds.push(pastedItem.id);
     });
-    if (newPastedItemIds.length > 0) { this.selectionManager.selectItems(newPastedItemIds, false); this.events.emit('itemsPasted', newPastedItemIds); }
+    if (newPastedItemIds.length > 0) {
+      this.selectionManager.selectItems(newPastedItemIds, false);
+      this.events.emit("itemsPasted", newPastedItemIds);
+    }
     this.canvasEngine.requestRender();
   };
 
-  private handleCut = (): void => { this.handleCopy(); this.handleDelete(); };
+  private handleCut = (): void => {
+    this.handleCopy();
+    this.handleDelete();
+  };
 
   private handleDelete = (): void => {
-    const selectedIds = this.selectionManager.getSelectedItems(); if (selectedIds.length === 0) return;
-    const nodesToDelete: string[] = []; const stickiesToDelete: string[] = []; const connectionsToDelete: string[] = [];
-    selectedIds.forEach(id => {
+    const selectedIds = this.selectionManager.getSelectedItems();
+    if (selectedIds.length === 0) return;
+    const nodesToDelete: string[] = [];
+    const stickiesToDelete: string[] = [];
+    const connectionsToDelete: string[] = [];
+    selectedIds.forEach((id) => {
       if (this.nodeManager.getNode(id)) nodesToDelete.push(id);
       else if (this.stickyNoteManager.getNote(id)) stickiesToDelete.push(id);
-      else if (this.connectionManager.getConnection(id)) connectionsToDelete.push(id);
+      else if (this.connectionManager.getConnection(id))
+        connectionsToDelete.push(id);
     });
-    if (connectionsToDelete.length > 0) this.connectionManager.deleteConnections(connectionsToDelete);
+    if (connectionsToDelete.length > 0)
+      this.connectionManager.deleteConnections(connectionsToDelete);
     if (nodesToDelete.length > 0) this.nodeManager.deleteNodes(nodesToDelete);
-    if (stickiesToDelete.length > 0) this.stickyNoteManager.deleteNotes(stickiesToDelete);
-    this.selectionManager.clearSelection(); this.events.emit('itemsDeleted', selectedIds);
+    if (stickiesToDelete.length > 0)
+      this.stickyNoteManager.deleteNotes(stickiesToDelete);
+    this.selectionManager.clearSelection();
+    this.events.emit("itemsDeleted", selectedIds);
     this.canvasEngine.requestRender();
   };
 
   private handleUndo = (): void => {
     const prevState = this.historyManager.undo();
-    if (prevState) { this.loadGraphState(prevState, false); this.events.emit('undone', prevState); }
+    if (prevState) {
+      this.loadGraphState(prevState, false);
+      this.events.emit("undone", prevState);
+    }
   };
 
   private handleRedo = (): void => {
     const nextState = this.historyManager.redo();
-    if (nextState) { this.loadGraphState(nextState, false); this.events.emit('redone', nextState); }
+    if (nextState) {
+      this.loadGraphState(nextState, false);
+      this.events.emit("redone", nextState);
+    }
   };
-  
+
   private handleSelectAll = (): void => {
-      const allNodeIds = this.nodeManager.getNodes().map(n => n.id);
-      const allStickyIds = this.stickyNoteManager.getNotes().map(s => s.id);
-      this.selectionManager.selectItems([...allNodeIds, ...allStickyIds], false);
-      this.canvasEngine.requestRender();
-  };
-
-  private handleEscape = (): void => {
-      if (this.interactionManager.getPendingConnection()) this.interactionManager.cancelPendingOrReconnectingConnection();
-      else if (this.selectionManager.getSelectionCount() > 0) this.selectionManager.clearSelection();
-      else if (this.quickAddMenu && (this.quickAddMenu as any).isVisible && (this.quickAddMenu as any).isVisible()) this.quickAddMenu.hide();
-      else if (this.contextMenu && (this.contextMenu as any).isVisible && (this.contextMenu as any).isVisible()) this.contextMenu.hide();
-      else if (this.configPanel && (this.configPanel as any).isVisible && (this.configPanel as any).isVisible()) this.configPanel.hide();
-      this.events.emit('escapePressed');
-  };
-
-  private handleCanvasContextMenu = (e: CanvasPointerEvent): void => {
-    if (!this.contextMenu) return; const { clientPoint, canvasPoint } = e;
-    const iElem = this.interactionManager.getInteractiveElementAtPoint(canvasPoint);
-    if (iElem.item && !this.selectionManager.isSelected(iElem.item.id) && (iElem.type==='node'||iElem.type==='stickyNote'||iElem.type==='connection')) {
-        this.selectionManager.selectItem(iElem.item.id, false);
-    } else if (iElem.type === 'canvas' && this.selectionManager.getSelectionCount() === 0) this.selectionManager.clearSelection();
-    const context: ContextMenuContext = { targetType: iElem.type, targetId: iElem.id, canvasPoint, clientPoint };
-    const menuItems = this.getContextMenuItemsForContext(context);
-    if (menuItems.length > 0) this.contextMenu.show(clientPoint, context, menuItems);
-  };
-
-  private getContextMenuItemsForContext(context: ContextMenuContext): ContextMenuItemAction[] {
-    const items: ContextMenuItemAction[] = []; const { targetType, targetId } = context; const selCount = this.selectionManager.getSelectionCount();
-    if (targetType === 'node' && targetId) {
-        const node = this.nodeManager.getNode(targetId);
-        if (node) {
-            items.push({ id: 'config-node', label: `Configure '${node.title}'`, iconName: 'ph-gear', action: () => this.configPanel?.show(node, 'node') });
-            items.push({ id: 'duplicate-node', label: 'Duplicate Node', iconName: 'ph-copy', action: () => this.duplicateSelectedItems() });
-        }
-    } else if (targetType === 'stickyNote' && targetId) {
-        const note = this.stickyNoteManager.getNote(targetId);
-        if (note) {
-            items.push({ id: 'config-note', label: 'Configure Note Style', iconName: 'ph-paint-brush', action: () => this.configPanel?.show(note, 'stickyNote') });
-            items.push({ id: 'duplicate-note', label: 'Duplicate Note', iconName: 'ph-copy', action: () => this.duplicateSelectedItems() });
-        }
-    } else if (targetType === 'connection' && targetId) {
-        const conn = this.connectionManager.getConnection(targetId);
-        if (conn) items.push({ id: 'config-connection', label: 'Configure Connection', iconName: 'ph-pencil-simple', action: () => this.configPanel?.show(conn, 'connection') });
-    } else if (targetType === 'canvas') {
-        const pointForAdd = context.canvasPoint || this.canvasEngine.getCenterCanvasPoint();
-        const clientPointForAdd = this.canvasEngine.getCanvasToClientCoordinates(pointForAdd);
-        items.push({ id: 'add-node-ctx', label: 'Add Node...', iconName: 'ph-plus-circle', action: () => { this.quickAddMenu?.show(clientPointForAdd, pointForAdd); }});
-        items.push({ id: 'add-sticky-ctx', label: 'Add Sticky Note', iconName: 'ph-note-pencil', action: () => {
-            const note = this.stickyNoteManager.createNote(pointForAdd); this.selectionManager.selectItem(note.id, false);
-        }});
-        if (this.clipboardManager.canPaste()) items.push({ id: 'paste-ctx', label: 'Paste', iconName: 'ph-clipboard-text', action: this.handlePaste, separatorBefore: true });
-    }
-    if (selCount > 0) {
-        let deleteLabel = `Delete ${selCount > 1 ? `${selCount} Items` : "Selected"}`;
-        if (selCount === 1 && targetId && this.selectionManager.isSelected(targetId)) {
-             if(targetType === 'node') deleteLabel = "Delete Node"; else if(targetType === 'stickyNote') deleteLabel = "Delete Note"; else if(targetType === 'connection') deleteLabel = "Delete Connection";
-        }
-        if (!items.some(i => i.id.startsWith('delete-'))) items.push({ id: 'delete-selected-ctx', label: deleteLabel, iconName: 'ph-trash', action: this.handleDelete, separatorBefore: items.length > 0 });
-    }
-    return items;
-  }
-  
-  private duplicateSelectedItems(): void { if (this.selectionManager.getSelectionCount() > 0) { this.handleCopy(); this.handlePaste(); }}
-
-  private handleContextMenuItemClicked = (actionId: string, context?: ContextMenuContext): void => this.events.emit('contextActionTriggered', actionId, context);
-
-  private handleCanvasDoubleClick = (e: CanvasPointerEvent): void => {
-    const iElem = this.interactionManager.getInteractiveElementAtPoint(e.canvasPoint); if (iElem.type === 'canvas') this.quickAddMenu?.show(e.clientPoint, e.canvasPoint);
-  };
-
-  private handleQuickAddItemChosen = (definition: NodeDefinition, canvasPosition: Point): void => {
-    const viewState = this.viewStore.getState(); let dropPos = canvasPosition;
-    if (viewState.snapToGrid) dropPos = { x: Math.round(canvasPosition.x / viewState.gridSize) * viewState.gridSize, y: Math.round(canvasPosition.y / viewState.gridSize) * viewState.gridSize };
-    let newItem: Node | StickyNote | null = null;
-    if (definition.id === 'sticky-note-def') newItem = this.stickyNoteManager.createNote(dropPos);
-    else newItem = this.nodeManager.createNodeFromDefinition(definition, dropPos);
-    if (newItem) { this.selectionManager.selectItem(newItem.id, false); this.events.emit('itemAddedFromQuickAdd', newItem); }
+    const allNodeIds = this.nodeManager.getNodes().map((n) => n.id);
+    const allStickyIds = this.stickyNoteManager.getNotes().map((s) => s.id);
+    this.selectionManager.selectItems([...allNodeIds, ...allStickyIds], false);
     this.canvasEngine.requestRender();
   };
 
-  public async saveGraphToLocalStorage(): Promise<void> { await this.platformDataService.saveGraph(this.getCurrentGraphState()); }
+  private handleEscape = (): void => {
+    if (this.interactionManager.getPendingConnection())
+      this.interactionManager.cancelPendingOrReconnectingConnection();
+    else if (this.selectionManager.getSelectionCount() > 0)
+      this.selectionManager.clearSelection();
+    else if (
+      this.quickAddMenu &&
+      (this.quickAddMenu as any).isVisible &&
+      (this.quickAddMenu as any).isVisible()
+    )
+      this.quickAddMenu.hide();
+    else if (
+      this.contextMenu &&
+      (this.contextMenu as any).isVisible &&
+      (this.contextMenu as any).isVisible()
+    )
+      this.contextMenu.hide();
+    else if (
+      this.configPanel &&
+      (this.configPanel as any).isVisible &&
+      (this.configPanel as any).isVisible()
+    )
+      this.configPanel.hide();
+    this.events.emit("escapePressed");
+  };
+
+  private handleCanvasContextMenu = (e: CanvasPointerEvent): void => {
+    if (!this.contextMenu) return;
+    const { clientPoint, canvasPoint } = e;
+    const iElem =
+      this.interactionManager.getInteractiveElementAtPoint(canvasPoint);
+    if (
+      iElem.item &&
+      !this.selectionManager.isSelected(iElem.item.id) &&
+      (iElem.type === "node" ||
+        iElem.type === "stickyNote" ||
+        iElem.type === "connection")
+    ) {
+      this.selectionManager.selectItem(iElem.item.id, false);
+    } else if (
+      iElem.type === "canvas" &&
+      this.selectionManager.getSelectionCount() === 0
+    )
+      this.selectionManager.clearSelection();
+    const context: ContextMenuContext = {
+      targetType: iElem.type,
+      targetId: iElem.id,
+      canvasPoint,
+      clientPoint,
+    };
+    const menuItems = this.getContextMenuItemsForContext(context);
+    if (menuItems.length > 0)
+      this.contextMenu.show(clientPoint, context, menuItems);
+  };
+
+  private getContextMenuItemsForContext(
+    context: ContextMenuContext
+  ): ContextMenuItemAction[] {
+    const items: ContextMenuItemAction[] = [];
+    const { targetType, targetId } = context;
+    const selCount = this.selectionManager.getSelectionCount();
+    if (targetType === "node" && targetId) {
+      const node = this.nodeManager.getNode(targetId);
+      if (node) {
+        items.push({
+          id: "config-node",
+          label: `Configure '${node.title}'`,
+          iconName: "ph-gear",
+          action: () => this.configPanel?.show(node, "node"),
+        });
+        items.push({
+          id: "duplicate-node",
+          label: "Duplicate Node",
+          iconName: "ph-copy",
+          action: () => this.duplicateSelectedItems(),
+        });
+      }
+    } else if (targetType === "stickyNote" && targetId) {
+      const note = this.stickyNoteManager.getNote(targetId);
+      if (note) {
+        items.push({
+          id: "config-note",
+          label: "Configure Note Style",
+          iconName: "ph-paint-brush",
+          action: () => this.configPanel?.show(note, "stickyNote"),
+        });
+        items.push({
+          id: "duplicate-note",
+          label: "Duplicate Note",
+          iconName: "ph-copy",
+          action: () => this.duplicateSelectedItems(),
+        });
+      }
+    } else if (targetType === "connection" && targetId) {
+      const conn = this.connectionManager.getConnection(targetId);
+      if (conn)
+        items.push({
+          id: "config-connection",
+          label: "Configure Connection",
+          iconName: "ph-pencil-simple",
+          action: () => this.configPanel?.show(conn, "connection"),
+        });
+    } else if (targetType === "canvas") {
+      const pointForAdd =
+        context.canvasPoint || this.canvasEngine.getCenterCanvasPoint();
+      const clientPointForAdd =
+        this.canvasEngine.getCanvasToClientCoordinates(pointForAdd);
+      items.push({
+        id: "add-node-ctx",
+        label: "Add Node...",
+        iconName: "ph-plus-circle",
+        action: () => {
+          this.quickAddMenu?.show(clientPointForAdd, pointForAdd);
+        },
+      });
+      items.push({
+        id: "add-sticky-ctx",
+        label: "Add Sticky Note",
+        iconName: "ph-note-pencil",
+        action: () => {
+          const note = this.stickyNoteManager.createNote(pointForAdd);
+          this.selectionManager.selectItem(note.id, false);
+        },
+      });
+      if (this.clipboardManager.canPaste())
+        items.push({
+          id: "paste-ctx",
+          label: "Paste",
+          iconName: "ph-clipboard-text",
+          action: this.handlePaste,
+          separatorBefore: true,
+        });
+    }
+    if (selCount > 0) {
+      let deleteLabel = `Delete ${
+        selCount > 1 ? `${selCount} Items` : "Selected"
+      }`;
+      if (
+        selCount === 1 &&
+        targetId &&
+        this.selectionManager.isSelected(targetId)
+      ) {
+        if (targetType === "node") deleteLabel = "Delete Node";
+        else if (targetType === "stickyNote") deleteLabel = "Delete Note";
+        else if (targetType === "connection") deleteLabel = "Delete Connection";
+      }
+      if (!items.some((i) => i.id.startsWith("delete-")))
+        items.push({
+          id: "delete-selected-ctx",
+          label: deleteLabel,
+          iconName: "ph-trash",
+          action: this.handleDelete,
+          separatorBefore: items.length > 0,
+        });
+    }
+    return items;
+  }
+
+  private duplicateSelectedItems(): void {
+    if (this.selectionManager.getSelectionCount() > 0) {
+      this.handleCopy();
+      this.handlePaste();
+    }
+  }
+
+  private handleContextMenuItemClicked = (
+    actionId: string,
+    context?: ContextMenuContext
+  ): void => this.events.emit("contextActionTriggered", actionId, context);
+
+  private handleCanvasDoubleClick = (e: CanvasPointerEvent): void => {
+    const iElem = this.interactionManager.getInteractiveElementAtPoint(
+      e.canvasPoint
+    );
+    if (iElem.type === "canvas")
+      this.quickAddMenu?.show(e.clientPoint, e.canvasPoint);
+  };
+
+  private handleQuickAddItemChosen = (
+    definition: NodeDefinition,
+    canvasPosition: Point
+  ): void => {
+    const viewState = this.viewStore.getState();
+    let dropPos = canvasPosition;
+    if (viewState.snapToGrid)
+      dropPos = {
+        x:
+          Math.round(canvasPosition.x / viewState.gridSize) *
+          viewState.gridSize,
+        y:
+          Math.round(canvasPosition.y / viewState.gridSize) *
+          viewState.gridSize,
+      };
+    let newItem: Node | StickyNote | null = null;
+    if (definition.id === "sticky-note-def")
+      newItem = this.stickyNoteManager.createNote(dropPos);
+    else
+      newItem = this.nodeManager.createNodeFromDefinition(definition, dropPos);
+    if (newItem) {
+      this.selectionManager.selectItem(newItem.id, false);
+      this.events.emit("itemAddedFromQuickAdd", newItem);
+    }
+    this.canvasEngine.requestRender();
+  };
+
+  public async saveGraphToLocalStorage(): Promise<void> {
+    await this.platformDataService.saveGraph(this.getCurrentGraphState());
+  }
   public async loadGraphFromLocalStorage(): Promise<boolean> {
     const graphState = await this.platformDataService.loadGraph();
-    if (graphState) { this.loadGraphState(graphState, true); return true; } return false;
+    if (graphState) {
+      this.loadGraphState(graphState, true);
+      return true;
+    }
+    return false;
   }
-  public getLocalStorageKey(): string { return LOCAL_STORAGE_GRAPH_KEY; }
+  public getLocalStorageKey(): string {
+    return LOCAL_STORAGE_GRAPH_KEY;
+  }
   public async clearGraph(): Promise<void> {
-    this.loadGraphState({ nodes: [], connections: [], stickyNotes: [], viewState: this.viewStore.getState() }, true);
+    this.loadGraphState(
+      {
+        nodes: [],
+        connections: [],
+        stickyNotes: [],
+        viewState: this.viewStore.getState(),
+      },
+      true
+    );
     await this.platformDataService.clearSavedGraph();
   }
 
   private getCurrentGraphState(): GraphState {
     return {
-      nodes: this.nodeManager.getNodes().map(n => JSON.parse(JSON.stringify(n))),
-      connections: this.connectionManager.getConnections().map(c => JSON.parse(JSON.stringify(c))),
-      stickyNotes: this.stickyNoteManager.getNotes().map(s => JSON.parse(JSON.stringify(s))),
+      nodes: this.nodeManager
+        .getNodes()
+        .map((n) => JSON.parse(JSON.stringify(n))),
+      connections: this.connectionManager
+        .getConnections()
+        .map((c) => JSON.parse(JSON.stringify(c))),
+      stickyNotes: this.stickyNoteManager
+        .getNotes()
+        .map((s) => JSON.parse(JSON.stringify(s))),
       viewState: JSON.parse(JSON.stringify(this.viewStore.getState())),
     };
   }
 
-  private loadGraphState(graphState: GraphState, pushToHistory: boolean = true): void {
+  private loadGraphState(
+    graphState: GraphState,
+    pushToHistory: boolean = true
+  ): void {
     this.selectionManager.clearSelection();
     this.nodeManager.loadNodes(graphState.nodes || []);
     this.connectionManager.loadConnections(graphState.connections || []);
     this.stickyNoteManager.loadNotes(graphState.stickyNotes || []);
-    if (graphState.viewState) this.viewStore.setState(graphState.viewState); else this.zoomToFitContent();
-    if (pushToHistory && !this.historyManager.isRestoringState()) this.historyManager.push(this.getCurrentGraphState());
-    this.toolbar?.refreshButtonStates(); this.canvasEngine.requestRender();
-    this.events.emit('graphLoaded', graphState);
+    if (graphState.viewState) this.viewStore.setState(graphState.viewState);
+    else this.zoomToFitContent();
+    if (pushToHistory && !this.historyManager.isRestoringState())
+      this.historyManager.push(this.getCurrentGraphState());
+    this.toolbar?.refreshButtonStates();
+    this.canvasEngine.requestRender();
+    this.events.emit("graphLoaded", graphState);
   }
-  
-  private recordInitialHistoryState(): void { if (!this.historyManager.canUndo() && !this.historyManager.canRedo()) this.historyManager.recordInitialState(this.getCurrentGraphState()); }
+
+  private recordInitialHistoryState(): void {
+    if (!this.historyManager.canUndo() && !this.historyManager.canRedo())
+      this.historyManager.recordInitialState(this.getCurrentGraphState());
+  }
 
   public zoomToFitContent(): void {
-    const allItems: Array<{position: Point, width: number, height: number}> = [...this.nodeManager.getNodes(), ...this.stickyNoteManager.getNotes()];
-    if (allItems.length === 0) { this.viewStore.resetView(); return; }
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    allItems.forEach(item => {
-      minX = Math.min(minX, item.position.x); minY = Math.min(minY, item.position.y);
-      maxX = Math.max(maxX, item.position.x + item.width); maxY = Math.max(maxY, item.position.y + item.height);
+    const allItems: Array<{ position: Point; width: number; height: number }> =
+      [...this.nodeManager.getNodes(), ...this.stickyNoteManager.getNotes()];
+    if (allItems.length === 0) {
+      this.viewStore.resetView();
+      return;
+    }
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    allItems.forEach((item) => {
+      minX = Math.min(minX, item.position.x);
+      minY = Math.min(minY, item.position.y);
+      maxX = Math.max(maxX, item.position.x + item.width);
+      maxY = Math.max(maxY, item.position.y + item.height);
     });
-    if (isFinite(minX)) { const contentRect: Rect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }; this.canvasEngine.zoomToFit(contentRect, 50); }
-    else this.viewStore.resetView();
+    if (isFinite(minX)) {
+      const contentRect: Rect = {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+      this.canvasEngine.zoomToFit(contentRect, 50);
+    } else this.viewStore.resetView();
   }
 
   public zoomToSelection(): void {
-    const selectedIds = this.selectionManager.getSelectedItems(); if (selectedIds.length === 0) return;
-    const selectedItems: Array<{position: Point, width: number, height: number}> = [];
-    selectedIds.forEach(id => {
-        const node = this.nodeManager.getNode(id); if (node) selectedItems.push(node);
-        else { const sticky = this.stickyNoteManager.getNote(id); if (sticky) selectedItems.push(sticky); }
+    const selectedIds = this.selectionManager.getSelectedItems();
+    if (selectedIds.length === 0) return;
+    const selectedItems: Array<{
+      position: Point;
+      width: number;
+      height: number;
+    }> = [];
+    selectedIds.forEach((id) => {
+      const node = this.nodeManager.getNode(id);
+      if (node) selectedItems.push(node);
+      else {
+        const sticky = this.stickyNoteManager.getNote(id);
+        if (sticky) selectedItems.push(sticky);
+      }
     });
     if (selectedItems.length === 0) return;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    selectedItems.forEach(item => {
-      minX = Math.min(minX, item.position.x); minY = Math.min(minY, item.position.y);
-      maxX = Math.max(maxX, item.position.x + item.width); maxY = Math.max(maxY, item.position.y + item.height);
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    selectedItems.forEach((item) => {
+      minX = Math.min(minX, item.position.x);
+      minY = Math.min(minY, item.position.y);
+      maxX = Math.max(maxX, item.position.x + item.width);
+      maxY = Math.max(maxY, item.position.y + item.height);
     });
-    if (isFinite(minX)) { const selectionRect: Rect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }; this.canvasEngine.zoomToFit(selectionRect, 80); }
+    if (isFinite(minX)) {
+      const selectionRect: Rect = {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+      this.canvasEngine.zoomToFit(selectionRect, 80);
+    }
   }
 
-  public on(eventName: string, listener: (...args: any[]) => void): this { this.events.on(eventName, listener); return this; }
-  public off(eventName: string, listener: (...args: any[]) => void): this { this.events.off(eventName, listener); return this; }
+  public async getNodeDefinitions(): Promise<NodeDefinition[]> {
+    if (this.availableNodeDefinitions.length === 0) {
+      await this.loadInitialNodeDefinitions();
+    }
+    return this.availableNodeDefinitions;
+  }
+
+  public applyItemConfig(
+    itemId: string,
+    itemType: ConfigurableItemType,
+    data: any
+  ): void {
+    if (itemType === "node") {
+      this.nodeManager.updateNode(itemId, { data });
+    } else if (itemType === "stickyNote") {
+      this.stickyNoteManager.updateNote(itemId, { style: data });
+    } else if (itemType === "connection") {
+      this.connectionManager.updateConnectionData(itemId, data);
+    }
+    this.historyManager.push(this.getCurrentGraphState());
+  }
+
+  public on(eventName: string, listener: (...args: any[]) => void): this {
+    this.events.on(eventName, listener);
+    return this;
+  }
+  public off(eventName: string, listener: (...args: any[]) => void): this {
+    this.events.off(eventName, listener);
+    return this;
+  }
 
   public destroy(): void {
-    this.shortcutManager.destroy(); this.dndController.destroy(); this.interactionManager.destroy();
-    this.renderService.destroy(); this.canvasEngine.destroy();
-    this.nodePalette?.destroy(); this.configPanel?.destroy(); this.toolbar?.destroy();
-    this.contextMenu?.destroy(); this.quickAddMenu?.destroy(); this.tooltip?.destroy();
-    this.historyManager.destroy(); this.clipboardManager.destroy(); this.selectionManager.destroy();
-    this.connectionManager.destroy(); this.nodeManager.destroy(); this.viewStore.destroy();
-    this.container.innerHTML = ''; this.events.removeAllListeners();
-    console.log('NodeEditorController destroyed.');
+    this.shortcutManager.destroy();
+    this.dndController.destroy();
+    this.interactionManager.destroy();
+    this.renderService.destroy();
+    this.canvasEngine.destroy();
+    this.nodePalette?.destroy();
+    this.configPanel?.destroy();
+    this.toolbar?.destroy();
+    this.contextMenu?.destroy();
+    this.quickAddMenu?.destroy();
+    this.tooltip?.destroy();
+    this.historyManager.destroy();
+    this.clipboardManager.destroy();
+    this.selectionManager.destroy();
+    this.connectionManager.destroy();
+    this.nodeManager.destroy();
+    this.viewStore.destroy();
+    this.container.innerHTML = "";
+    this.events.removeAllListeners();
+    console.log("NodeEditorController destroyed.");
   }
 }
