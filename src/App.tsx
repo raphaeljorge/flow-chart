@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { NodeEditorController } from './editor/app/NodeEditorController';
 import './editor/styles/main.css';
+import './editor/styles/theme-variables.css';
 
 const App: React.FC = () => {
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -31,10 +32,10 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div ref={editorContainerRef} style={{ flex: 1, position: 'relative' }} />
+    <div className="app-container">
+      <div ref={editorContainerRef} className="editor-container" />
       
-      <div style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 1001, display: 'flex', gap: '10px' }}>
+      <div className="button-container">
         <button
           onClick={() => editorControllerRef.current?.saveGraphToLocalStorage()}
           className="btn btn-primary"
