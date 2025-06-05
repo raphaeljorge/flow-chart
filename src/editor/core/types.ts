@@ -46,6 +46,7 @@ export interface Node {
   status?: "success" | "error" | "running" | "warning" | "unsaved";
   icon?: string; // Icon identifier (e.g., 'ph-globe')
   config?: NodeConfig; // Configuration structure for this node type (from NodeDefinition)
+  color?: string;
 }
 
 export interface StickyNote {
@@ -141,8 +142,9 @@ export interface NodeDefinition {
   defaultHeight?: number;
   minWidth?: number;
   minHeight?: number;
+  color?: string;
   // Default fixed ports
-  defaultInputs?: Array<
+  ddefaultInputs?: Array<
     Omit<
       NodePort,
       | "id"

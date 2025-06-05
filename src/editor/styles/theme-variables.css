@@ -1,75 +1,90 @@
 :root {
-    /* General UI */
-    --editor-font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-    --editor-line-height: 1.5;
-    --editor-font-weight-normal: 400;
-    --editor-background-color: #242424;
-    --editor-text-color: rgba(255, 255, 255, 0.87);
-    --editor-text-color-light: #ffffff;
-    --editor-text-color-medium: #aaa;
-    --editor-text-color-dark: #888;
-    --editor-text-color-darker: #666;
-  
-    /* Canvas */
-    --canvas-background-color: #0a0a0a;
-    --canvas-grid-minor-color: rgba(255, 255, 255, 0.08);
-    --canvas-grid-major-color: rgba(255, 255, 255, 0.12);
-  
-    /* Nodes */
-    --node-background-color: #1a1a1a;
-    --node-border-color: #2a2a2a;
-    --node-header-background-color: #2a2a2a;
-    --node-icon-background-color: #4a4a4a;
-    --node-icon-text-color: var(--editor-text-color-light);
-    --node-title-text-color: var(--editor-text-color-light);
-    --node-id-text-color: var(--editor-text-color-darker);
-    --node-port-background-color: #2a2a2a;
-    --node-port-border-color: #3a3a3a;
-    --node-port-text-color: var(--editor-text-color-light);
-    --node-port-dynamic-background-color: #B8860B; /* DarkGoldenRod */
-    --node-port-dynamic-border-color: #FFD700; /* Gold */
-  
-  
-    /* Connections */
-    --connection-default-color: #666666;
-    --connection-pending-color: #5A93E4;
-    --connection-pending-compatible-color: #4CAF50;
-    --connection-reconnecting-color: #FF9800;
-    --connection-ghosted-color: #aaa;
-  
-  
-    /* Selection & Highlighting */
-    --selection-highlight-color: #6366f1;
-    --selection-highlight-color-transparent: rgba(99, 102, 241, 0.1);
-    --port-highlight-border-color: #5A93E4;
-    --port-highlight-fill-color: #3c6493;
-  
-    /* UI Components */
-    --ui-panel-background-color: #1a1a1a;
-    --ui-panel-border-color: #2a2a2a;
-    --ui-element-background-color: #2a2a2a;
-    --ui-element-border-color: #3a3a3a;
-    --ui-element-hover-background-color: #3a3a3a;
-    --ui-element-active-background-color: #4a4a4a;
-    --ui-button-primary-background-color: #6366f1;
-    --ui-button-primary-hover-background-color: #4f46e5;
-    --ui-button-secondary-background-color: #2a2a2a;
-    --ui-button-secondary-hover-background-color: #3a3a3a;
-    --ui-button-danger-background-color: #ef4444;
-    --ui-button-danger-hover-background-color: #dc2626;
-    --ui-input-background-color: #2a2a2a;
-    --ui-input-border-color: #3a3a3a;
-    --ui-input-focus-border-color: #6366f1;
-  
-    /* Status Colors */
-    --status-success-color: #22c55e;
-    --status-error-color: #ef4444;
-    --status-running-color: #3b82f6;
-    --status-warning-color: #f59e0b;
-    --status-unsaved-color: #8b5cf6;
-  
-    /* Sticky Notes */
-    --sticky-note-default-background-color: #2a2a2a;
-    --sticky-note-default-text-color: var(--editor-text-color-light);
-    --sticky-note-border-color: #3a3a3a;
-  }
+  /* General UI */
+  --editor-font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --editor-line-height: 1.5;
+  --editor-font-weight-normal: 400;
+  --editor-background-color: #1a1a1a; /* Fundo geral do editor, mais escuro */
+  --editor-text-color: rgba(255, 255, 255, 0.87);
+  --editor-text-color-light: #ffffff;
+  --editor-text-color-medium: #b0b0b0; /* Levemente mais claro para contraste */
+  --editor-text-color-dark: #888888;
+  --editor-text-color-darker: #555555; /* Ainda mais escuro */
+
+  /* Canvas */
+  --canvas-background-color: #0d0d0d; /* Fundo do canvas bem escuro, como na imagem */
+  --canvas-grid-minor-color: rgba(
+    255,
+    255,
+    255,
+    0.05
+  ); /* Linhas de grade mais sutis */
+  --canvas-grid-major-color: rgba(
+    255,
+    255,
+    255,
+    0.08
+  ); /* Linhas de grade maiores mais sutis */
+
+  /* Nodes */
+  --node-background-color: #000000; /* Preto puro para o fundo do nó */
+  --node-border-color: #000000; /* Esta será a cor padrão se node.color não estiver definido */
+  --node-header-background-color: #000000; /* Fundo do cabeçalho pode ser um cinza muito escuro */
+  --node-icon-background-color: transparent; /* O fundo do ícone será a própria cor do ícone, ou transparente */
+  --node-icon-text-color: #ffffff; /* Texto do ícone fixo como branco */
+  --node-title-text-color: #ffffff; /* Título do nó fixo como branco */
+  --node-id-text-color: #cccccc; /* ID do nó um cinza mais claro */
+  --node-port-background-color: #000000; /* Fundo da porta será a cor do nó */
+  --node-port-border-color: #666666; /* Borda da porta será a cor do nó */
+  --node-port-text-color: #ffffff; /* Texto da porta fixo como branco */
+  --node-port-dynamic-background-color: #8b5cf6; /* Cor roxa para portas dinâmicas (exemplo) */
+  --node-port-dynamic-border-color: #a78bfa; /* Borda roxa para portas dinâmicas (exemplo) */
+
+  /* Connections */
+  --connection-default-color: #ffffff; /* Linhas de conexão: branco */
+  --connection-pending-color: #007bff; /* Azul para conexão pendente */
+  --connection-pending-compatible-color: #28a745; /* Verde para conexão compatível */
+  --connection-reconnecting-color: #ffc107; /* Amarelo para reconexão */
+  --connection-ghosted-color: #888888; /* Cinza para conexão 'fantasma' */
+
+  /* Selection & Highlighting */
+  --selection-highlight-color: #007bff; /* Azul para seleção (pode ser o que está na imagem) */
+  --selection-highlight-color-transparent: rgba(
+    0,
+    123,
+    255,
+    0.15
+  ); /* Transparente do azul de seleção */
+  --port-highlight-border-color: #007bff; /* Borda do porto destacado */
+  --port-highlight-fill-color: #0056b3; /* Preenchimento do porto destacado */
+
+  /* UI Components */
+  --ui-panel-background-color: #1f1f1f; /* Fundo dos painéis (palette, config) */
+  --ui-panel-border-color: #333333; /* Borda dos painéis */
+  --ui-element-background-color: #2a2a2a; /* Fundo de elementos UI (itens da palette) */
+  --ui-element-border-color: #444444; /* Borda de elementos UI */
+  --ui-element-hover-background-color: #383838; /* Fundo de elementos UI ao passar o mouse */
+  --ui-element-active-background-color: #4a4a4a; /* Fundo de elementos UI ativos */
+  --ui-button-primary-background-color: #007bff; /* Botão primário (azul) */
+  --ui-button-primary-hover-background-color: #0056b3;
+  --ui-button-secondary-background-color: #343a40; /* Botão secundário (cinza escuro) */
+  --ui-button-secondary-hover-background-color: #495057;
+  --ui-button-danger-background-color: #dc3545; /* Botão de perigo (vermelho) */
+  --ui-button-danger-hover-background-color: #c82333;
+  --ui-input-background-color: #2a2a2a; /* Fundo dos inputs */
+  --ui-input-border-color: #444444; /* Borda dos inputs */
+  --ui-input-focus-border-color: #007bff; /* Borda dos inputs em foco */
+
+  /* Status Colors */
+  --status-success-color: #28a745; /* Verde */
+  --status-error-color: #dc3545; /* Vermelho */
+  --status-running-color: #007bff; /* Azul */
+  --status-warning-color: #ffc107; /* Amarelo */
+  --status-unsaved-color: #6c757d; /* Cinza */
+
+  /* Sticky Notes */
+  --sticky-note-default-background-color: #343a40; /* Fundo da sticky note */
+  --sticky-note-default-text-color: var(
+    --editor-text-color-light
+  ); /* Cor do texto da sticky note */
+  --sticky-note-border-color: #495057; /* Borda da sticky note */
+}

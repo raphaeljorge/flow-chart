@@ -36,6 +36,7 @@ export class NodeManager {
       config: definition.config,
       minWidth: definition.minWidth || MIN_NODE_WIDTH,
       minHeight: definition.minHeight || MIN_NODE_HEIGHT,
+      color: definition.color || '#666666',
     };
 
     (definition.defaultInputs || []).forEach(inputDef => {
@@ -74,10 +75,11 @@ export class NodeManager {
   public updateNode(nodeId: string, updates: Partial<Omit<Node, 'id' | 'fixedInputs' | 'fixedOutputs' | 'dynamicInputs' | 'dynamicOutputs'>>): void {
     const node = this.nodes.get(nodeId);
     if (node) {
-      const oldData = updates.data ? { ...node.data } : undefined; // Capture old data if new data is provided
-      Object.assign(node, updates); // Apply all updates
+      const oldData = updates.data ? { ...node.data } : undefined;
+      // Certifique-se de que a cor pode ser atualizada também
+      Object.assign(node, updates); 
       
-      if (updates.data && oldData) { // If data was part of the updates
+      if (updates.data && oldData) {
           this.parseVariablesAndUpdatePorts(node, node.data, oldData);
       }
       this.emitNodesUpdated();
@@ -348,8 +350,10 @@ export class NodeManager {
   public loadNodes(nodes: Node[]): void {
     this.nodes.clear();
     nodes.forEach(nodeData => {
-        // Deep clone to ensure no shared references, especially for arrays like ports
+        // Certifique-se de que a cor é copiada ao carregar
         const clonedNode = JSON.parse(JSON.stringify(nodeData)) as Node;
+        // Adicione uma cor padrão se a cor estiver faltando em nós antigos
+        clonedNode.color = clonedNode.color || '#666666'; 
         this.nodes.set(clonedNode.id, clonedNode);
     });
     this.emitNodesUpdated();

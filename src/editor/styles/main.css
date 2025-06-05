@@ -67,6 +67,11 @@ body {
     height: 100%;
 }
 
+.node-item,
+.quick-add-item {
+    border-radius: 6px;
+}
+
 .editor-overlay-container {
     position: absolute;
     top: 0;

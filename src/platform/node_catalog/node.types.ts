@@ -24,6 +24,7 @@ export interface PlatformNodeDefinition {
   defaultHeight?: number;
   minWidth?: number;
   minHeight?: number;
+  color?: string;
 
   // Default fixed ports for this node type.
   // Uses a simplified version of NodePort, as detailed instance properties (like connections, nodeId)

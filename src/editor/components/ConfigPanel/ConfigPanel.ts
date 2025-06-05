@@ -137,8 +137,26 @@ export class ConfigPanel {
             baseConfig.tabs.push(portsTab);
         }
         
-        // Parameters for fixed inputs (mainly for info or minor adjustments if ever needed)
-        // node.fixedInputs.forEach(port => { /* ... potentially add display for fixed ports ... */ });
+        let appearanceTab = baseConfig.tabs.find((t: ConfigTab) => t.id === 'appearance');
+        if (!appearanceTab) {
+            appearanceTab = { id: 'appearance', label: 'Appearance', icon: 'ph-palette' };
+            // Adicione a aba de aparência em uma posição estratégica, por exemplo, logo após 'General'
+            const generalTabIndex = baseConfig.tabs.findIndex(t => t.id === 'general');
+            if (generalTabIndex !== -1) {
+                baseConfig.tabs.splice(generalTabIndex + 1, 0, appearanceTab);
+            } else {
+                baseConfig.tabs.push(appearanceTab);
+            }
+        }
+
+        baseConfig.parameters.push({
+            id: 'color',
+            tabId: 'appearance', // Associe à nova aba 'Appearance'
+            type: 'color',
+            label: 'Node Color',
+            description: 'Custom color for node border, ports, and icon.',
+            defaultValue: node.color || '#666666', // Use a cor atual do nó ou um padrão
+        } as ConfigParameter);
 
         // Parameters for dynamic inputs
         baseConfig.parameters.push({
@@ -472,7 +490,7 @@ export class ConfigPanel {
     if (!this.currentItem || !this.currentItemType) return;
     let value: any;
     if (inputElement.type === 'checkbox') value = (inputElement as HTMLInputElement).checked;
-    else if (inputElement.type === 'number') value = inputElement.value === '' ? null : parseFloat(inputElement.value); // Allow empty to be null
+    else if (inputElement.type === 'number') value = inputElement.value === '' ? null : parseFloat(inputElement.value);
     else value = inputElement.value;
 
     // Basic Validation (can be expanded)
@@ -518,9 +536,11 @@ export class ConfigPanel {
     // Update logic
     if (this.currentItemType === 'node') {
         const node = this.currentItem as Node;
-        const oldNodeData = JSON.parse(JSON.stringify(node.data || {})); // For variable parsing
+        const oldNodeData = JSON.parse(JSON.stringify(node.data || {}));
 
-        if (param.id.startsWith('dyn-in-')) {
+        if (param.id === 'color') { // Adicione o tratamento para o parâmetro de cor
+            this.nodeManager.updateNode(node.id, { color: value as string });
+        } else if (param.id.startsWith('dyn-in-')) {
             const portId = param.id.split('-')[2];
             if (param.id.endsWith('-name')) this.nodeManager.updatePort(portId, { variableName: value as string, name: value as string });
             else if (param.id.endsWith('-hidden')) this.nodeManager.updatePort(portId, { isHidden: value as boolean });
@@ -530,17 +550,13 @@ export class ConfigPanel {
             else if (param.id.endsWith('-value')) this.nodeManager.updatePort(portId, { outputValue: value as string });
         } else { // Standard node data
             const newData = { ...node.data, [param.id]: value };
-            // If it's a final change or param type suggests immediate parsing (e.g. code editor blur)
-            // We trigger the full variable parsing and data update
             if(finalChange || param.type === 'code'){
                  this.nodeManager.updateNodeDataAndParseVariables(node.id, newData, oldNodeData);
             } else {
-                // For intermediate changes (e.g. typing in a text field), just update the data silently
-                // The full parse happens on "Apply" or when `finalChange` is true.
-                node.data = newData; // Direct update for live typing, full parse on apply/blur
+                node.data = newData;
             }
         }
-        this.nodeManager.updateNode(node.id, { status: 'unsaved' }); // Mark as unsaved on any change
+        this.nodeManager.updateNode(node.id, { status: 'unsaved' });
     } else if (this.currentItemType === 'stickyNote') {
       const note = this.currentItem as StickyNote;
       const styleKey = param.id as keyof StickyNote['style'];

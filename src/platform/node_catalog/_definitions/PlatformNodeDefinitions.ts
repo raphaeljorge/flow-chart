@@ -13,6 +13,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     icon: 'ph-note-pencil',
     defaultWidth: 180,
     defaultHeight: 120,
+    color: '#888888',
   },
   {
     id: 'trigger-webhook',
@@ -23,6 +24,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultWidth: 240,
     defaultHeight: 130,
     defaultFixedOutputs: [{ name: 'Output', type: 'output' }],
+    color: '#FFD700',
     config: asNodeConfig({
       id: 'webhook-config',
       itemType: 'node',
@@ -57,6 +59,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultWidth: 240,
     defaultHeight: 130,
     defaultFixedOutputs: [{ name: 'Output', type: 'output' }],
+    color: '#FFD700',
     config: asNodeConfig({
       id: 'schedule-config',
       itemType: 'node',
@@ -78,6 +81,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultFixedOutputs: [{ name: 'Response', type: 'output' }, { name: 'Error', type: 'output' }],
     defaultWidth: 260,
     defaultHeight: 150,
+    color: '#5A93E4',
     config: asNodeConfig({
       id: 'http-request-config',
       itemType: 'node',
@@ -105,6 +109,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultFixedOutputs: [{ name: 'Sent', type: 'output' }, { name: 'Error', type: 'output' }],
     defaultWidth: 260,
     defaultHeight: 150,
+    color: '#5A93E4',
     config: asNodeConfig({
       id: 'send-email-config',
       itemType: 'node',
@@ -133,6 +138,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultFixedOutputs: [{ name: 'True', type: 'output' }, { name: 'False', type: 'output' }],
     defaultWidth: 200,
     defaultHeight: 120,
+    color: '#22C55E',
     config: asNodeConfig({
         id: 'condition-config', itemType: 'node',
         parameters: [ { id: 'conditionExpression', type: 'code', label: 'Condition', description: 'JavaScript expression evaluating to true or false. e.g., {{input.value}} > 10', required: true} ]
@@ -148,6 +154,7 @@ export const ALL_PLATFORM_NODE_DEFINITIONS: PlatformNodeDefinition[] = [
     defaultFixedOutputs: [{ name: 'Output', type: 'output' }],
     defaultWidth: 280,
     defaultHeight: 180,
+    color: '#EF4444',
     config: asNodeConfig({
         id: 'custom-js-config', itemType: 'node',
         parameters: [ { id: 'script', type: 'code', label: 'JavaScript Code', description: 'Access input data via `input` object. Return a value for output.', required: true, defaultValue: '// Access input via input.propertyName\n// Example: return { result: input.value * 2 };\n\nreturn input;'} ]
