@@ -1,57 +1,47 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import FlowEditor from './components/FlowEditor';
+import NodePalette from './components/NodePalette';
 import { NodeEditorController } from './editor/app/NodeEditorController';
 
 const App: React.FC = () => {
-  const handleEditorReady = (controller: NodeEditorController) => {
+  const [controller, setController] = useState<NodeEditorController | null>(null);
+
+  const handleEditorReady = (editorController: NodeEditorController) => {
+    setController(editorController);
     // Load saved graph if exists
-    controller.loadGraphFromLocalStorage().catch(console.error);
+    editorController.loadGraphFromLocalStorage().catch(console.error);
   };
 
   return (
     <div className="app-container">
+      <NodePalette controller={controller} />
       <FlowEditor 
         options={{
           defaultScale: 1,
           gridSize: 20,
           showGrid: true,
           snapToGrid: false,
+          showPalette: false,
+          showToolbar: true,
         }}
         onEditorReady={handleEditorReady}
       />
       
       <div className="button-container">
         <button
-          onClick={() => document.querySelector<HTMLDivElement>('.editor-container')?.querySelector<HTMLCanvasElement>('canvas')?.toBlob(blob => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'flow.png';
-              a.click();
-              URL.revokeObjectURL(url);
-            }
-          })}
+          onClick={() => controller?.saveGraphToLocalStorage()}
           className="btn btn-primary"
         >
           Save Graph
         </button>
         <button
-          onClick={() => document.querySelector<HTMLDivElement>('.editor-container')?.querySelector<HTMLCanvasElement>('canvas')?.toBlob(blob => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'flow.png';
-              a.click();
-              URL.revokeObjectURL(url);
-            }
-          })}
+          onClick={() => controller?.loadGraphFromLocalStorage()}
           className="btn btn-secondary"
         >
           Load Graph
         </button>
         <button
+          onClick={() => controller?.clearGraph()}
           className="btn btn-danger"
         >
           Clear Graph
