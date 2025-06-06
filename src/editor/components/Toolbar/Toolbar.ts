@@ -1,4 +1,3 @@
-// src/editor/components/Toolbar/Toolbar.ts
 import { EventEmitter } from 'eventemitter3';
 import { EditorIconService } from '../../services/EditorIconService';
 import './Toolbar.css'; // Co-located CSS
@@ -6,116 +5,131 @@ import './Toolbar.css'; // Co-located CSS
 export interface ToolbarButtonDefinition {
   id: string;
   title: string;
-  iconName: string; // Icon name like 'ph-grid-four', EditorIconService handles prefix
+  iconName: string;
   action: () => void;
-  isActive?: () => boolean; // Optional: function to check if the button should appear active
-  isToggle?: boolean; // If the button acts as a toggle
-  disabled?: () => boolean; // CORRECTED: If the button should be disabled
-  isHidden?: () => boolean; // If the button should be hidden
+  isActive?: () => boolean;
+  isToggle?: boolean;
+  disabled?: () => boolean;
+  isHidden?: () => boolean;
+}
+
+// NOVO: Definição para um elemento de exibição de texto
+export interface ToolbarDisplayDefinition {
+  id: string;
+  text: () => string; // Função que retorna o texto a ser exibido
+  title?: string; // Tooltip para o display
+}
+
+type ToolbarItem = ToolbarButtonDefinition | ToolbarDisplayDefinition | { type: 'separator' };
+
+function isButtonDefinition(item: ToolbarItem): item is ToolbarButtonDefinition {
+    return (item as ToolbarButtonDefinition).action !== undefined;
+}
+
+function isDisplayDefinition(item: ToolbarItem): item is ToolbarDisplayDefinition {
+    return (item as ToolbarDisplayDefinition).text !== undefined;
 }
 
 export class Toolbar {
-  private wrapper: HTMLElement; // The .toolbar-wrapper div passed from NodeEditorController
-  private toolbarElement: HTMLElement; // The actual div.floating-menu
-  private buttons: ToolbarButtonDefinition[] = [];
+  private wrapper: HTMLElement;
+  private toolbarElement: HTMLElement;
+  private items: ToolbarItem[] = []; // Armazena todas as definições
   private events: EventEmitter;
 
   constructor(
-    wrapperElement: HTMLElement, // The div that will contain the toolbar (for positioning)
+    wrapperElement: HTMLElement,
     private iconService: EditorIconService
     ) {
     this.wrapper = wrapperElement;
     this.events = new EventEmitter();
 
     this.toolbarElement = document.createElement('div');
-    this.toolbarElement.className = 'editor-toolbar floating-menu'; // Use a more specific class
+    this.toolbarElement.className = 'editor-toolbar floating-menu';
     this.wrapper.appendChild(this.toolbarElement);
   }
 
   public addButton(buttonDef: ToolbarButtonDefinition): void {
-    this.buttons.push(buttonDef);
-    this.renderButton(buttonDef);
+    this.items.push(buttonDef);
+    this.render();
+  }
+
+  // NOVO: Método para adicionar um display de texto
+  public addDisplay(displayDef: ToolbarDisplayDefinition): void {
+    this.items.push(displayDef);
+    this.render();
   }
 
   public addSeparator(): void {
-    const separator = document.createElement('div');
-    separator.className = 'toolbar-separator';
-    this.toolbarElement.appendChild(separator);
+    this.items.push({ type: 'separator' });
+    this.render();
+  }
+
+  private render(): void {
+    this.toolbarElement.innerHTML = ''; // Limpa a barra de ferramentas antes de renderizar
+    this.items.forEach(item => {
+        if (isButtonDefinition(item)) {
+            this.renderButton(item);
+        } else if (isDisplayDefinition(item)) {
+            this.renderDisplay(item);
+        } else if (item.type === 'separator') {
+            const separator = document.createElement('div');
+            separator.className = 'toolbar-separator';
+            this.toolbarElement.appendChild(separator);
+        }
+    });
+    this.refresh(); // Atualiza os estados visuais após a renderização
   }
 
   private renderButton(buttonDef: ToolbarButtonDefinition): void {
     const buttonElement = document.createElement('button');
     buttonElement.className = 'toolbar-button';
-    buttonElement.id = `toolbar-btn-${buttonDef.id}`; // Ensure unique ID
+    buttonElement.id = `toolbar-btn-${buttonDef.id}`;
     buttonElement.title = buttonDef.title;
 
     buttonElement.innerHTML = this.iconService.getIconHTMLString(buttonDef.iconName);
 
-    const updateVisualState = () => {
-        if (buttonDef.isHidden && buttonDef.isHidden()) {
-            buttonElement.style.display = 'none';
-            return;
-        }
-        buttonElement.style.display = ''; // Ensure visible if not hidden
-
-        const active = buttonDef.isActive ? buttonDef.isActive() : false;
-        buttonElement.classList.toggle('active', active);
-
-        const disabled = buttonDef.disabled ? buttonDef.disabled() : false;
-        buttonElement.disabled = disabled;
-        buttonElement.classList.toggle('disabled', disabled);
-    };
-
-    updateVisualState(); // Initial state
-
     buttonElement.addEventListener('click', () => {
       if (buttonElement.disabled) return;
       buttonDef.action();
-      // For toggle buttons, isActive should now reflect the new state
-      if (buttonDef.isToggle) {
-        const active = buttonDef.isActive ? buttonDef.isActive() : false;
-        buttonElement.classList.toggle('active', active);
-      }
+      this.refresh(); // Atualiza o estado visual após a ação
       this.events.emit('buttonClicked', buttonDef.id);
     });
 
     this.toolbarElement.appendChild(buttonElement);
   }
 
-  // Call this to re-evaluate visual states of all buttons
-  public refreshButtonStates(): void {
-    this.buttons.forEach(buttonDef => {
-      const buttonElement = this.toolbarElement.querySelector(`#toolbar-btn-${buttonDef.id}`) as HTMLButtonElement;
-      if (buttonElement) {
-        if (buttonDef.isHidden && buttonDef.isHidden()) {
-            buttonElement.style.display = 'none';
-        } else {
-            buttonElement.style.display = '';
-            const isActive = buttonDef.isActive ? buttonDef.isActive() : false;
-            buttonElement.classList.toggle('active', isActive);
+  private renderDisplay(displayDef: ToolbarDisplayDefinition): void {
+    const displayElement = document.createElement('div');
+    displayElement.className = 'toolbar-display'; // Adicionamos uma classe para estilização
+    displayElement.id = `toolbar-display-${displayDef.id}`;
+    if (displayDef.title) {
+        displayElement.title = displayDef.title;
+    }
+    this.toolbarElement.appendChild(displayElement);
+  }
 
-            const isDisabled = buttonDef.disabled ? buttonDef.disabled() : false; // Call the function
-            buttonElement.disabled = isDisabled;
-            buttonElement.classList.toggle('disabled', isDisabled);
+  public refresh(): void {
+    this.items.forEach(item => {
+        if (isButtonDefinition(item)) {
+            const buttonElement = this.toolbarElement.querySelector(`#toolbar-btn-${item.id}`) as HTMLButtonElement;
+            if (buttonElement) {
+                const isHidden = item.isHidden ? item.isHidden() : false;
+                buttonElement.style.display = isHidden ? 'none' : '';
+
+                const isActive = item.isActive ? item.isActive() : false;
+                buttonElement.classList.toggle('active', isActive);
+
+                const isDisabled = item.disabled ? item.disabled() : false;
+                buttonElement.disabled = isDisabled;
+                buttonElement.classList.toggle('disabled', isDisabled);
+            }
+        } else if (isDisplayDefinition(item)) {
+            const displayElement = this.toolbarElement.querySelector(`#toolbar-display-${item.id}`) as HTMLDivElement;
+            if (displayElement) {
+                displayElement.textContent = item.text();
+            }
         }
-      }
     });
-  }
-
-  // Specific update methods if needed, though refreshButtonStates is more general
-  public updateButtonActiveState(buttonId: string, isActive: boolean): void {
-    const buttonElement = this.toolbarElement.querySelector(`#toolbar-btn-${buttonId}`) as HTMLButtonElement;
-    if (buttonElement) {
-      buttonElement.classList.toggle('active', isActive);
-    }
-  }
-
-  public updateButtonDisabledState(buttonId: string, isDisabled: boolean): void {
-    const buttonElement = this.toolbarElement.querySelector(`#toolbar-btn-${buttonId}`) as HTMLButtonElement;
-    if (buttonElement) {
-      buttonElement.disabled = isDisabled;
-      buttonElement.classList.toggle('disabled', isDisabled);
-    }
   }
 
   public on(event: 'buttonClicked', listener: (buttonId: string) => void): this {
@@ -129,8 +143,8 @@ export class Toolbar {
   }
 
   public destroy(): void {
-    this.wrapper.innerHTML = ''; // Clear the wrapper this component was mounted in
+    this.wrapper.innerHTML = '';
     this.events.removeAllListeners();
-    this.buttons = [];
+    this.items = [];
   }
 }

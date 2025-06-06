@@ -59,6 +59,7 @@ import { ConfigPanel } from "../components/ConfigPanel/ConfigPanel";
 import {
   Toolbar,
   ToolbarButtonDefinition,
+  ToolbarDisplayDefinition,
 } from "../components/Toolbar/Toolbar";
 import {
   ContextMenu,
@@ -288,6 +289,8 @@ export class NodeEditorController {
 
   private initializeToolbarButtons(): void {
     if (!this.toolbar) return;
+
+    // 1. Botões de Histórico (Undo/Redo)
     this.toolbar.addButton({
       id: "undo",
       title: "Undo (Ctrl+Z)",
@@ -304,9 +307,18 @@ export class NodeEditorController {
     });
     this.toolbar.addSeparator();
 
+    // 2. Botões de Visualização do Canvas
+    this.toolbar.addButton({
+      id: "toggle-grid",
+      title: "Toggle Grid (G)",
+      iconName: "ph-grid-four",
+      isToggle: true,
+      action: () => this.viewStore.toggleGrid(),
+      isActive: () => this.viewStore.getState().showGrid,
+    });
     this.toolbar.addButton({
       id: "toggle-snap",
-      title: "Toggle Snap (S)",
+      title: "Toggle Snap to Grid (S)",
       iconName: "ph-magnet",
       isToggle: true,
       action: () => this.viewStore.toggleSnapToGrid(),
@@ -353,9 +365,10 @@ export class NodeEditorController {
 
     this.toolbar.addSeparator();
 
+    // 3. Botões de Controlo de Zoom
     this.toolbar.addButton({
       id: "zoom-to-fit",
-      title: "Zoom to Fit (F)",
+      title: "Zoom to Fit Content (F)",
       iconName: "ph-arrows-out",
       action: () => this.zoomToFitContent(),
     });
@@ -368,11 +381,20 @@ export class NodeEditorController {
     });
     this.toolbar.addButton({
       id: "reset-view",
-      title: "Reset View (R)",
-      iconName: "ph-arrows-in",
+      title: "Reset View (100%)",
+      iconName: "ph-frame-corners", // Ícone alternativo para "reset"
       action: () => this.viewStore.resetView(),
     });
-    this.toolbar.refreshButtonStates();
+    
+    // O nosso novo display de zoom, agora agrupado com os outros controlos de zoom
+    this.toolbar.addDisplay({
+        id: 'zoom-display',
+        title: 'Current Zoom Level',
+        text: () => `${Math.round(this.viewStore.getState().scale * 100)}%`
+    });
+
+    // O método refresh() irá renderizar e atualizar todos os itens na ordem em que foram adicionados.
+    this.toolbar.refresh();
   }
 
   private wireUpCoreEvents(): void {
@@ -387,16 +409,16 @@ export class NodeEditorController {
     );
 
     this.viewStore.on(EVENT_VIEW_CHANGED, () =>
-      this.toolbar?.refreshButtonStates()
+      this.toolbar?.refresh()
     );
     this.historyManager.on(EVENT_HISTORY_CHANGED, () =>
-      this.toolbar?.refreshButtonStates()
+      this.toolbar?.refresh()
     );
     this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () =>
-      this.toolbar?.refreshButtonStates()
+      this.toolbar?.refresh()
     );
     this.selectionManager.on(EVENT_SELECTION_CHANGED, () =>
-      this.toolbar?.refreshButtonStates()
+      this.toolbar?.refresh()
     );
     this.interactionManager.on(
       "canvasContextMenu",

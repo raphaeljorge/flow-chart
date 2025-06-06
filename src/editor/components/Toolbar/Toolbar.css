@@ -1,8 +1,8 @@
-/* src/editor/components/Toolbar/Toolbar.css */
 .editor-toolbar.floating-menu {
   /* Targeting the specific toolbar */
   position: relative; /* Positioned by its wrapper */
   display: flex;
+  align-items: center; /* Alinha itens verticalmente */
   gap: 8px;
   padding: 8px;
   background: var(--ui-panel-background-color, #2a2a2a);
@@ -58,4 +58,18 @@
   width: 1px;
   background: var(--ui-element-border-color, #3a3a3a);
   margin: 4px 4px; /* Adjusted margin for better visual separation */
+}
+
+/* NOVO: Estilo para o display de zoom */
+.toolbar-display {
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--editor-text-color-medium, #aaa);
+  background: var(--ui-element-background-color, #3a3a3a);
+  border-radius: 6px;
+  line-height: 36px; /* Alinha verticalmente com os botões */
+  height: 36px;
+  min-width: 50px; /* Largura mínima */
+  text-align: center;
+  font-variant-numeric: tabular-nums; /* Mantém a largura dos números consistente */
 }

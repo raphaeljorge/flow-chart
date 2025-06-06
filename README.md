@@ -183,13 +183,11 @@ node-based-software-builder/
 
 ### **Advanced Canvas Features**
 
-- ❌ **Canvas minimap/overview** for navigation in large flows
+- ✅ **Canvas minimap/overview** for navigation in large flows
 
-- ❌ **Canvas rulers/measurements** 
+- ✅ **Canvas background patterns** (dots vs lines vs solid)
 
-- ❌ **Canvas background patterns** (dots vs lines vs solid)
-
-- ❌ **Canvas zoom percentage display**
+- ✅ **Canvas zoom percentage display**
 
 
 
