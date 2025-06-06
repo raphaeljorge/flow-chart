@@ -15,7 +15,7 @@ const FlowEditor: React.FC<FlowEditorProps> = ({ options, onEditorReady }) => {
       // Initialize the controller
       const controller = new NodeEditorController(canvasContainerRef.current, {
         ...options,
-        showPalette: false, // Ensure internal UI isn't created
+        showPalette: true, // Ensure internal UI isn't created
         showToolbar: false, // Ensure internal UI isn't created
       });
 
