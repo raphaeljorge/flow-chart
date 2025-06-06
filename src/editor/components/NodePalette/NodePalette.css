@@ -34,7 +34,7 @@
 .palette-categories {
   padding: 8px 0;
   border-bottom: 1px solid var(--ui-panel-border-color, #2a2a2a);
-  flex-shrink: 0; /* Prevent shrinking when node list is long */
+  flex-shrink: 0; 
 }
 
 .category-item {
@@ -58,12 +58,47 @@
 }
 
 .category-item .ph {
-  /* Icon styling */
   font-size: 16px;
   color: var(--editor-text-color-medium, #aaa);
 }
 .category-item.active .ph {
   color: var(--editor-text-color-light, #fff);
+}
+
+.category-section {
+  margin-bottom: 4px; /* Расстояние между секциями */
+}
+
+.category-section-header {
+  padding: 8px 12px;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--editor-text-color-medium, #aaa);
+  background-color: var(--ui-element-background-color, #2a2a2a);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.category-section-header:hover {
+  background-color: var(--ui-element-hover-background-color, #3a3a3a);
+  color: var(--editor-text-color-light, #fff);
+}
+
+.category-section-header .caret-icon {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+}
+
+.category-section-header .category-icon {
+  font-size: 16px;
+}
+
+.category-section-nodes {
+  padding: 8px 0 0 8px; /* Небольшой отступ для узлов */
 }
 
 .palette-nodes {
