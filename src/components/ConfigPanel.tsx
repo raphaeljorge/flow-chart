@@ -22,7 +22,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
         if (node) {
           setSelectedItem(node);
           setItemType('node');
-          setFormData(node.data || {});
+          // Include node color in formData
+          setFormData({ ...node.data, color: node.color });
+          // Set active tab to first available tab or 'general'
           setActiveTab(node.config?.tabs?.[0]?.id || 'general');
           return;
         }
@@ -158,7 +160,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
   
   const handleApplyChanges = () => {
     if (!controller || !selectedItem || !itemType) return;
-    controller.applyItemConfig(selectedItem.id, itemType, formData);
+    
+    // For nodes, handle color separately from data
+    if (itemType === 'node') {
+      const { color, ...nodeData } = formData;
+      controller.nodeManager.updateNode(selectedItem.id, { color });
+      controller.applyItemConfig(selectedItem.id, itemType, nodeData);
+    } else {
+      controller.applyItemConfig(selectedItem.id, itemType, formData);
+    }
   };
 
   if (!selectedItem || !itemType) {
@@ -168,6 +178,25 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
   const config = selectedItem.config;
   const title = (selectedItem as Node).title || (selectedItem as StickyNote).content || 'Item';
   const icon = (selectedItem as Node).icon || 'ph-gear';
+
+  // Get all available tabs, including the style tab for nodes
+  const allTabs = config?.tabs || [];
+  if (itemType === 'node' && !allTabs.find(t => t.id === 'style')) {
+    allTabs.push({ id: 'style', label: 'Style', icon: 'ph-palette' });
+  }
+
+  // Get all parameters, including style parameters for nodes
+  const allParameters = [...(config?.parameters || [])];
+  if (itemType === 'node' && activeTab === 'style') {
+    allParameters.push({
+      id: 'color',
+      tabId: 'style',
+      type: 'color',
+      label: 'Node Color',
+      description: 'Custom color for node border, ports, and icon.',
+      defaultValue: (selectedItem as Node).color || '#666666'
+    });
+  }
 
   return (
     <div className="config-panel-wrapper visible">
@@ -182,9 +211,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
           </div>
         </div>
 
-        {config?.tabs && (
+        {allTabs.length > 0 && (
           <div className="config-panel-tabs">
-            {config.tabs.map(tab => (
+            {allTabs.map(tab => (
               <div
                 key={tab.id}
                 className={`config-tab ${tab.id === activeTab ? 'active' : ''}`}
@@ -198,7 +227,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
         )}
 
         <div className="config-panel-content">
-          {config?.parameters
+          {allParameters
             .filter(param => !activeTab || param.tabId === activeTab)
             .map(param => (
               <div key={param.id} className="form-group">
