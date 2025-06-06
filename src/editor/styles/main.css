@@ -135,7 +135,7 @@ body {
 .toolbar-wrapper {
     position: absolute;
     top: 20px;
-    left: 20px;
+    left: 300px; /* Moved to the right of the palette (280px + 20px margin) */
     z-index: 15;
 }
 
