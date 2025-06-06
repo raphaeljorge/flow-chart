@@ -67,7 +67,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     if (name === 'color' && controller && selectedItem && itemType === 'node') {
       controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
       setFormData(prev => ({ ...prev, [name]: finalValue }));
-      return;
+      return; // Return early to prevent the effect from firing
     }
     
     setFormData(prev => ({ ...prev, [name]: finalValue }));
