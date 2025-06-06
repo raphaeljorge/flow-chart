@@ -14,7 +14,7 @@ export const MIN_NODE_HEIGHT = 40;
 export const NODE_HEADER_HEIGHT = 40;
 export const NODE_PORT_VERTICAL_SPACING = 24;
 export const NODE_PORT_SIZE = 10; // Diameter of the port circle
-export const NODE_PORT_HIT_RADIUS = 8; // For click/hover detection
+export const NODE_PORT_HIT_RADIUS = 14; // For click/hover detection
 export const NODE_ID_PREFIX = "node_";
 export const NODE_DEFAULT_ICON = 'ph-cube';
 
