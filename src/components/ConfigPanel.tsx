@@ -63,7 +63,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     const isCheckbox = type === 'checkbox';
     const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
     
-    // Handle color changes immediately
+    // Handle color changes immediately for both color input and hex input
     if (name === 'color' && controller && selectedItem && itemType === 'node') {
       controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
     }
