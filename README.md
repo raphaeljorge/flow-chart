@@ -195,7 +195,7 @@ node-based-software-builder/
 
 - ✅ **Favorites/recently used nodes** (no star/favorite system)
 
-- ❌ **Node preview tooltips** with detailed descriptions
+- ✅ **Node preview tooltips** with detailed descriptions
 
 - ❌ **Collapsible category sections** (categories are flat tabs)
 
