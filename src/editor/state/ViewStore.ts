@@ -1,6 +1,5 @@
-// src/editor/state/ViewStore.ts
 import { EventEmitter } from 'eventemitter3';
-import { ViewState, Point } from '../core/types';
+import { ViewState, Point, CanvasBackgroundPattern } from '../core/types';
 import { EVENT_VIEW_CHANGED, DEFAULT_SCALE, DEFAULT_GRID_SIZE } from '../core/constants';
 
 export class ViewStore {
@@ -14,9 +13,7 @@ export class ViewStore {
       showGrid: initialState?.showGrid ?? true,
       snapToGrid: initialState?.snapToGrid ?? false,
       gridSize: initialState?.gridSize ?? DEFAULT_GRID_SIZE,
-      // Add other UI panel states here if needed, e.g.:
-      // isPaletteVisible: true,
-      // isConfigPanelVisible: false,
+      backgroundPattern: initialState?.backgroundPattern ?? 'dots',
     };
     this.events = new EventEmitter();
   }
@@ -49,8 +46,17 @@ export class ViewStore {
     }
   }
 
-  public toggleGrid(): void {
-    this.setState({ showGrid: !this.state.showGrid });
+  public toggleGrid(forceState?: boolean): void {
+    const showGrid = forceState !== undefined ? forceState : !this.state.showGrid;
+    if (this.state.showGrid !== showGrid) {
+        this.setState({ showGrid });
+    }
+  }
+
+  public setBackgroundPattern(pattern: CanvasBackgroundPattern): void {
+    if (this.state.backgroundPattern !== pattern) {
+      this.setState({ backgroundPattern: pattern });
+    }
   }
 
   public toggleSnapToGrid(): void {
@@ -64,15 +70,9 @@ export class ViewStore {
         showGrid: defaultState?.showGrid ?? true,
         snapToGrid: defaultState?.snapToGrid ?? false,
         gridSize: defaultState?.gridSize ?? DEFAULT_GRID_SIZE,
+        backgroundPattern: defaultState?.backgroundPattern ?? 'dots',
     });
   }
-
-  // Example for managing UI panel visibility
-  // public setPaletteVisibility(isVisible: boolean): void {
-  //   if (this.state.isPaletteVisible !== isVisible) {
-  //     this.setState({ isPaletteVisible: isVisible });
-  //   }
-  // }
 
   public on(event: string, listener: (newState: ViewState, oldState?: ViewState) => void): this {
     if (event === EVENT_VIEW_CHANGED) {

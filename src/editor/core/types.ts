@@ -1,4 +1,3 @@
-// src/editor/core/types.ts
 export interface Point {
   x: number;
   y: number;
@@ -10,6 +9,8 @@ export interface Size {
 }
 
 export interface Rect extends Point, Size {}
+
+export type CanvasBackgroundPattern = 'solid' | 'dots' | 'lines';
 
 export interface NodePort {
   id: string;
@@ -128,6 +129,7 @@ export interface ViewState {
   showGrid: boolean;
   snapToGrid: boolean;
   gridSize: number;
+  backgroundPattern: CanvasBackgroundPattern;
 }
 
 // Definition of a node type available in the palette

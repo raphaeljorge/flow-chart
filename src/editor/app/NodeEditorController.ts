@@ -1,3 +1,4 @@
+// raphaeljorge/flow-chart/flow-chart-a2c8a12e5015216d4dd318cbcb87273e5d4507ec/src/editor/app/NodeEditorController.ts
 // src/editor/app/NodeEditorController.ts
 import { EventEmitter } from "eventemitter3";
 import {
@@ -66,7 +67,6 @@ import {
 } from "../components/ContextMenu/ContextMenu";
 import { QuickAddMenu } from "../components/QuickAddMenu/QuickAddMenu";
 import { Tooltip, TooltipContent } from "../components/Tooltip/Tooltip";
-import { Minimap } from '../components/Minimap/Minimap';
 
 export class NodeEditorController {
   private container: HTMLElement;
@@ -97,14 +97,12 @@ export class NodeEditorController {
   private contextMenu: ContextMenu | null = null;
   private quickAddMenu: QuickAddMenu | null = null;
   private tooltip: Tooltip | null = null;
-  private minimap: Minimap | null = null;
 
   private paletteWrapper: HTMLElement | null = null;
   private canvasWrapper: HTMLElement | null = null;
   private configPanelWrapper: HTMLElement | null = null;
   private toolbarWrapper: HTMLElement | null = null;
   private overlayWrapper: HTMLElement | null = null;
-  private minimapWrapper: HTMLElement | null = null;
 
   private availableNodeDefinitions: NodeDefinition[] = [];
 
@@ -116,7 +114,6 @@ export class NodeEditorController {
     this.options = {
       showPalette: true,
       showToolbar: true,
-      showMinimap: true,
       defaultScale: 1,
       gridSize: 20,
       showGrid: true,
@@ -225,12 +222,6 @@ export class NodeEditorController {
       this.canvasWrapper.appendChild(this.toolbarWrapper);
     }
 
-    if (this.options.showMinimap && this.canvasWrapper) {
-      // O minimap não precisa de um wrapper separado, ele pode ser injetado diretamente
-      // no container do canvas para ficar sobreposto.
-      // O próprio componente Minimap criará seu wrapper.
-    }
-
     // A camada de overlay é sempre necessária para menus de contexto, etc.
     this.overlayWrapper = document.createElement("div");
     this.overlayWrapper.className = "editor-overlay-container";
@@ -293,17 +284,6 @@ export class NodeEditorController {
       );
       this.tooltip = new Tooltip(this.overlayWrapper);
     }
-
-    if (this.options.showMinimap && this.canvasWrapper) {
-      this.minimap = new Minimap(
-        this.canvasWrapper, // O minimap será filho do container do canvas
-        this.canvasEngine,
-        this.nodeManager,
-        this.stickyNoteManager,
-        this.viewStore,
-        this.iconService
-      );
-    }
   }
 
   private initializeToolbarButtons(): void {
@@ -323,14 +303,7 @@ export class NodeEditorController {
       disabled: () => !this.historyManager.canRedo(),
     });
     this.toolbar.addSeparator();
-    this.toolbar.addButton({
-      id: "toggle-grid",
-      title: "Toggle Grid (G)",
-      iconName: "ph-grid-four",
-      isToggle: true,
-      action: () => this.viewStore.toggleGrid(),
-      isActive: () => this.viewStore.getState().showGrid,
-    });
+
     this.toolbar.addButton({
       id: "toggle-snap",
       title: "Toggle Snap (S)",
@@ -340,6 +313,46 @@ export class NodeEditorController {
       isActive: () => this.viewStore.getState().snapToGrid,
     });
     this.toolbar.addSeparator();
+
+    this.toolbar.addButton({
+      id: "bg-solid",
+      title: "Solid Background",
+      iconName: "ph-square",
+      isToggle: true,
+      action: () => {
+        this.viewStore.toggleGrid(false);
+      },
+      isActive: () => !this.viewStore.getState().showGrid,
+    });
+    this.toolbar.addButton({
+      id: "bg-dots",
+      title: "Dotted Background",
+      iconName: "ph-dots-nine",
+      isToggle: true,
+      action: () => {
+        this.viewStore.toggleGrid(true);
+        this.viewStore.setBackgroundPattern("dots");
+      },
+      isActive: () =>
+        this.viewStore.getState().showGrid &&
+        this.viewStore.getState().backgroundPattern === "dots",
+    });
+    this.toolbar.addButton({
+      id: "bg-lines",
+      title: "Lined Background",
+      iconName: "ph-grid-four",
+      isToggle: true,
+      action: () => {
+        this.viewStore.toggleGrid(true);
+        this.viewStore.setBackgroundPattern("lines");
+      },
+      isActive: () =>
+        this.viewStore.getState().showGrid &&
+        this.viewStore.getState().backgroundPattern === "lines",
+    });
+
+    this.toolbar.addSeparator();
+
     this.toolbar.addButton({
       id: "zoom-to-fit",
       title: "Zoom to Fit (F)",
@@ -363,9 +376,15 @@ export class NodeEditorController {
   }
 
   private wireUpCoreEvents(): void {
-    this.nodeManager.on(EVENT_NODES_UPDATED, () => this.canvasEngine.requestRender());
-    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () => this.canvasEngine.requestRender());
-    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () => this.canvasEngine.requestRender());
+    this.nodeManager.on(EVENT_NODES_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
+    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
+    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
 
     this.viewStore.on(EVENT_VIEW_CHANGED, () =>
       this.toolbar?.refreshButtonStates()
@@ -521,7 +540,6 @@ export class NodeEditorController {
     this.shortcutManager.on("redo", this.handleRedo);
     this.shortcutManager.on("selectAll", this.handleSelectAll);
     this.shortcutManager.on("escape", this.handleEscape);
-    this.shortcutManager.on("toggleGrid", () => this.viewStore.toggleGrid());
     this.shortcutManager.on("toggleSnapToGrid", () =>
       this.viewStore.toggleSnapToGrid()
     );
@@ -1046,7 +1064,6 @@ export class NodeEditorController {
     this.connectionManager.destroy();
     this.nodeManager.destroy();
     this.viewStore.destroy();
-    this.minimap?.destroy();
     this.container.innerHTML = "";
     this.events.removeAllListeners();
     console.log("NodeEditorController destroyed.");

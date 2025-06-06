@@ -1,4 +1,3 @@
-// src/editor/canvas/CanvasEngine.ts
 import { EventEmitter } from 'eventemitter3';
 import { Point, CanvasPointerEvent, CanvasWheelEvent, Rect } from '../core/types';
 import { ViewStore } from '../state/ViewStore';
@@ -214,16 +213,10 @@ export class CanvasEngine {
     this.viewStore.setScaleAndOffset(newScale, { x: newOffsetX, y: newOffsetY });
   }
 
-
-  private drawGrid(): void {
+  private drawLines(): void {
     const viewState = this.viewStore.getState();
-    if (!viewState.showGrid) return;
-
     const { scale, offset, gridSize } = viewState;
     const scaledGridSize = gridSize * scale;
-
-    // Evita desenhar o grid se ele for muito pequeno, melhorando a performance
-    if (scaledGridSize < 4) return;
 
     this.ctx.beginPath();
     const minorGridColor = getComputedStyle(this.canvas).getPropertyValue('--canvas-grid-minor-color').trim() || 'rgba(255, 255, 255, 0.08)';
@@ -240,32 +233,76 @@ export class CanvasEngine {
 
     // Desenha as linhas menores
     this.ctx.strokeStyle = minorGridColor;
-    this.ctx.lineWidth = 1; // Linhas sempre com 1px de espessura
+    this.ctx.lineWidth = 1;
 
     for (let x = startX; x < this.canvas.width; x += scaledGridSize) {
-      this.ctx.moveTo(Math.floor(x) + 0.5, 0);
-      this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
+        this.ctx.moveTo(Math.floor(x) + 0.5, 0);
+        this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
     }
     for (let y = startY; y < this.canvas.height; y += scaledGridSize) {
-      this.ctx.moveTo(0, Math.floor(y) + 0.5);
-      this.ctx.lineTo(this.canvas.width, Math.floor(y) + 0.5);
+        this.ctx.moveTo(0, Math.floor(y) + 0.5);
+        this.ctx.lineTo(this.canvas.width, Math.floor(y) + 0.5);
     }
     this.ctx.stroke();
 
-    // Desenha as linhas maiores por cima
     this.ctx.beginPath();
     this.ctx.strokeStyle = majorGridColor;
     this.ctx.lineWidth = 1;
 
     for (let x = majorStartX; x < this.canvas.width; x += majorScaledGridSize) {
-      this.ctx.moveTo(Math.floor(x) + 0.5, 0);
-      this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
+        this.ctx.moveTo(Math.floor(x) + 0.5, 0);
+        this.ctx.lineTo(Math.floor(x) + 0.5, this.canvas.height);
     }
     for (let y = majorStartY; y < this.canvas.height; y += majorScaledGridSize) {
-      this.ctx.moveTo(0, Math.floor(y) + 0.5);
-      this.ctx.lineTo(this.canvas.width, Math.floor(y) + 0.5);
+        this.ctx.moveTo(0, Math.floor(y) + 0.5);
+        this.ctx.lineTo(this.canvas.width, Math.floor(y) + 0.5);
     }
     this.ctx.stroke();
+  }
+
+  private drawDots(): void {
+    const viewState = this.viewStore.getState();
+    const { scale, offset, gridSize } = viewState;
+    const scaledGridSize = gridSize * scale;
+
+    const dotColor = getComputedStyle(this.canvas).getPropertyValue('--canvas-grid-minor-color').trim() || 'rgba(255, 255, 255, 0.12)';
+    this.ctx.fillStyle = dotColor;
+
+    const startX = offset.x % scaledGridSize;
+    const startY = offset.y % scaledGridSize;
+    const dotRadius = scale > 0.5 ? 1 : 0.5;
+
+    for (let x = startX; x < this.canvas.width; x += scaledGridSize) {
+        for (let y = startY; y < this.canvas.height; y += scaledGridSize) {
+            this.ctx.beginPath();
+            this.ctx.arc(Math.floor(x), Math.floor(y), dotRadius, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+    }
+  }
+
+  private drawBackground(): void {
+    const viewState = this.viewStore.getState();
+    
+    if (!viewState.showGrid) {
+        return;
+    }
+
+    const { scale, gridSize } = viewState;
+
+    if (gridSize * scale < 4) return;
+
+    switch (viewState.backgroundPattern) {
+        case 'lines':
+            this.drawLines();
+            break;
+        case 'dots':
+            this.drawDots();
+            break;
+        case 'solid':
+        default:
+            break;
+    }
   }
 
 
@@ -285,8 +322,8 @@ export class CanvasEngine {
     // 1. Limpa o canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // 2. Desenha o grid diretamente na tela (em "screen space")
-    this.drawGrid();
+    // 2. Desenha o fundo
+    this.drawBackground();
 
     // 3. Salva o contexto e aplica a transformação de zoom/pan para os nós e conexões
     this.ctx.save();
