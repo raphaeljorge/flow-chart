@@ -1,5 +1,3 @@
-// src/editor/core/constants.ts
-
 // Canvas & Rendering
 export const DEFAULT_GRID_SIZE = 20;
 export const DEFAULT_SCALE = 1;

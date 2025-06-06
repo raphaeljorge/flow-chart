@@ -1,9 +1,8 @@
-// src/editor/components/NodePalette/NodePalette.ts
 import { EventEmitter } from 'eventemitter3';
 import { NodeDefinition } from '../../core/types';
-import { EditorIconService } from '../../services/EditorIconService'; // Corrected path
+import { EditorIconService } from '../../services/EditorIconService';
 import { LOCAL_STORAGE_FAVORITES_KEY } from '../../core/constants';
-import './NodePalette.css'; // Co-located CSS
+import './NodePalette.css';
 
 export interface NodePaletteOptions {
   nodeDefinitions: NodeDefinition[];
@@ -118,7 +117,7 @@ export class NodePalette {
       const favoriteIconHtml = this.iconService.getIconHTMLString(favoriteIconClass);
 
       nodeElement.innerHTML = `
-        <div class.node-icon-wrapper">
+        <div class="node-icon-wrapper">
           ${nodeIconHtml}
         </div>
         <div class="node-info">

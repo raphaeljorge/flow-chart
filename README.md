@@ -193,7 +193,7 @@ node-based-software-builder/
 
 ### **Node Palette Enhancements**
 
-- ❌ **Favorites/recently used nodes** (no star/favorite system)
+- ✅ **Favorites/recently used nodes** (no star/favorite system)
 
 - ❌ **Node preview tooltips** with detailed descriptions
 
