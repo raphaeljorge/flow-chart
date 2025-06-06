@@ -95,7 +95,7 @@ body {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 10;
+    z-index: 30;
 }
 
 .node-palette-wrapper {
@@ -135,8 +135,9 @@ body {
 .toolbar-wrapper {
     position: absolute;
     top: 20px;
-    left: 300px; /* Moved to the right of the palette (280px + 20px margin) */
-    z-index: 15;
+    left: 300px; /* Positioned after the palette width (280px + 20px margin) */
+    z-index: 25; /* Above palette but below overlay container */
+    pointer-events: auto; /* Ensure toolbar is clickable */
 }
 
 .btn {
