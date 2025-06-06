@@ -78,8 +78,8 @@ export class ConnectionManager {
     };
 
     this.connections.set(connection.id, connection);
-    this.nodeManager.updatePortConnections(sourcePortId, connection.id, true);
-    this.nodeManager.updatePortConnections(targetPortId, connection.id, true);
+    this.nodeManager._updatePortConnectionList(sourcePortId, connection.id, true);
+    this.nodeManager._updatePortConnectionList(targetPortId, connection.id, true);
 
     this.emitConnectionsUpdated();
     this.events.emit('connectionCreated', connection);
@@ -137,8 +137,8 @@ export class ConnectionManager {
   public deleteConnection(connectionId: string, silent: boolean = false): void {
     const connection = this.connections.get(connectionId);
     if (connection) {
-      this.nodeManager.updatePortConnections(connection.sourcePortId, connection.id, false);
-      this.nodeManager.updatePortConnections(connection.targetPortId, connection.id, false);
+      this.nodeManager._updatePortConnectionList(connection.sourcePortId, connection.id, false);
+      this.nodeManager._updatePortConnectionList(connection.targetPortId, connection.id, false);
       this.connections.delete(connectionId);
 
       if (!silent) {
@@ -153,8 +153,8 @@ export class ConnectionManager {
     connectionIds.forEach(id => {
         const connection = this.connections.get(id);
         if (connection) {
-          this.nodeManager.updatePortConnections(connection.sourcePortId, id, false);
-          this.nodeManager.updatePortConnections(connection.targetPortId, id, false);
+          this.nodeManager._updatePortConnectionList(connection.sourcePortId, id, false);
+          this.nodeManager._updatePortConnectionList(connection.targetPortId, id, false);
           this.connections.delete(id);
           this.events.emit('connectionDeleted', connection); // Emit for each
           changed = true;
@@ -214,8 +214,8 @@ export class ConnectionManager {
         const clonedConn = JSON.parse(JSON.stringify(conn));
         this.connections.set(clonedConn.id, clonedConn);
         // After loading, ensure port connection arrays in NodeManager are updated
-        this.nodeManager.updatePortConnections(clonedConn.sourcePortId, clonedConn.id, true);
-        this.nodeManager.updatePortConnections(clonedConn.targetPortId, clonedConn.id, true);
+        this.nodeManager._updatePortConnectionList(clonedConn.sourcePortId, clonedConn.id, true);
+        this.nodeManager._updatePortConnectionList(clonedConn.targetPortId, clonedConn.id, true);
     });
     this.emitConnectionsUpdated();
   }
