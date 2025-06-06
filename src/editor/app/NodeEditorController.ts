@@ -97,7 +97,7 @@ export class NodeEditorController {
   private toolbar: Toolbar | null = null;
   private contextMenu: ContextMenu | null = null;
   private quickAddMenu: QuickAddMenu | null = null;
-  private tooltip: Tooltip | null = null;
+  public tooltip: Tooltip | null = null;
 
   private paletteWrapper: HTMLElement | null = null;
   private canvasWrapper: HTMLElement | null = null;

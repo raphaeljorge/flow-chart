@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { NodeEditorController } from '../editor/app/NodeEditorController';
-import { NodeDefinition } from '../editor/core/types';
+import { NodeDefinition, TooltipContent } from '../editor/core/types';
 import { LOCAL_STORAGE_FAVORITES_KEY } from '../editor/core/constants';
-import '../editor/components/NodePalette/NodePalette.css'; // Reutilizando o mesmo CSS
+import '../editor/components/NodePalette/NodePalette.css';
 
 interface NodePaletteProps {
   controller: NodeEditorController | null;
@@ -53,7 +53,6 @@ const NodePalette: React.FC<NodePaletteProps> = ({ controller }) => {
       } else {
         newFavorites.add(defId);
       }
-      // Persiste no localStorage
       localStorage.setItem(LOCAL_STORAGE_FAVORITES_KEY, JSON.stringify(Array.from(newFavorites)));
       return newFavorites;
     });
@@ -63,6 +62,24 @@ const NodePalette: React.FC<NodePaletteProps> = ({ controller }) => {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, defId: string) => {
     e.dataTransfer.setData('text/plain', defId);
     e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleMouseEnterNode = (e: React.MouseEvent<HTMLDivElement>, def: NodeDefinition) => {
+    if (!controller?.tooltip) return;
+
+    const content: TooltipContent = {
+      title: def.title,
+      type: def.category,
+      description: def.description,
+      id: def.id,
+    };
+
+    const clientPoint = { x: e.clientX, y: e.clientY };
+    controller.tooltip.scheduleShow(clientPoint, content);
+  };
+
+  const handleMouseLeaveNode = () => {
+    controller?.tooltip?.hide();
   };
 
   const categories = useMemo(() => {
@@ -145,6 +162,8 @@ const NodePalette: React.FC<NodePaletteProps> = ({ controller }) => {
                 className="node-item"
                 draggable
                 onDragStart={(e) => handleDragStart(e, def.id)}
+                onMouseEnter={(e) => handleMouseEnterNode(e, def)}
+                onMouseLeave={handleMouseLeaveNode}
               >
                 <div className="node-icon-wrapper">
                   <i className={`ph ${def.icon || 'ph-cube'}`}></i>
