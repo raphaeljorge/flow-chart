@@ -197,7 +197,7 @@ node-based-software-builder/
 
 - ✅ **Node preview tooltips** with detailed descriptions
 
-- ❌ **Collapsible category sections** (categories are flat tabs)
+- ✅ **Collapsible category sections** (categories are flat tabs)
 
 
 
