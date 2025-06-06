@@ -135,9 +135,9 @@ body {
 .toolbar-wrapper {
     position: absolute;
     top: 20px;
-    left: 300px; /* Positioned after the palette width (280px + 20px margin) */
-    z-index: 25; /* Above palette but below overlay container */
-    pointer-events: auto; /* Ensure toolbar is clickable */
+    left: 20px; /* Changed from 300px to 20px to align with canvas */
+    z-index: 25;
+    pointer-events: auto;
 }
 
 .btn {
