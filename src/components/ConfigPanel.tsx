@@ -62,15 +62,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
     const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
-    
-    // Handle color changes immediately for both color input and hex input
+
+    // Atualiza o estado do formulário para todos os inputs
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+
+    // Se o input for o de cor, também atualiza o nó diretamente no controller
+    // Isso garante a resposta visual imediata, agora que o controller redesenha o canvas.
     if (name === 'color' && controller && selectedItem && itemType === 'node') {
       controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
-      setFormData(prev => ({ ...prev, [name]: finalValue }));
-      return; // Return early to prevent the effect from firing
     }
-    
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
   // Effect to auto-save changes

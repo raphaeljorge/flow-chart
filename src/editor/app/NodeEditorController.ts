@@ -19,6 +19,9 @@ import {
   EVENT_SELECTION_CHANGED,
   EVENT_HISTORY_CHANGED,
   EVENT_CLIPBOARD_CHANGED,
+  EVENT_NODES_UPDATED,
+  EVENT_CONNECTIONS_UPDATED,
+  EVENT_NOTES_UPDATED,
   LOCAL_STORAGE_GRAPH_KEY,
   ALL_NODE_DEFINITIONS as FALLBACK_NODE_DEFINITIONS,
   EVENT_CONFIG_APPLIED,
@@ -339,6 +342,10 @@ export class NodeEditorController {
   }
 
   private wireUpCoreEvents(): void {
+    this.nodeManager.on(EVENT_NODES_UPDATED, () => this.canvasEngine.requestRender());
+    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () => this.canvasEngine.requestRender());
+    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () => this.canvasEngine.requestRender());
+
     this.viewStore.on(EVENT_VIEW_CHANGED, () =>
       this.toolbar?.refreshButtonStates()
     );
