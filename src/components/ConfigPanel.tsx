@@ -58,14 +58,26 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     };
   }, [controller]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const isCheckbox = type === 'checkbox';
+    const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
+    
+    // Handle color changes immediately
+    if (name === 'color' && controller && selectedItem && itemType === 'node') {
+      controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
+    }
+    
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+  };
+
   // Effect to auto-save changes
   useEffect(() => {
     if (!controller || !selectedItem || !itemType) return;
 
-    // For nodes, handle color separately from data
+    // For nodes, handle only the data object (color is handled separately in handleInputChange)
     if (itemType === 'node') {
       const { color, ...nodeData } = formData;
-      controller.nodeManager.updateNode(selectedItem.id, { color });
       controller.applyItemConfig(selectedItem.id, itemType, nodeData);
     } else {
       controller.applyItemConfig(selectedItem.id, itemType, formData);
@@ -151,6 +163,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
               type="text"
               value={value}
               onChange={handleInputChange}
+              name={param.id}
               className="config-input-hex"
               pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
               title="Hex color code"
@@ -161,13 +174,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
       default:
         return <p>Unsupported parameter type: {param.type}</p>;
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
-    const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
 
   if (!selectedItem || !itemType) {
