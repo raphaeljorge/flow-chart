@@ -17,6 +17,7 @@ const FlowEditor: React.FC<FlowEditorProps> = ({ options, onEditorReady }) => {
         ...options,
         showPalette: true, // Ensure internal UI isn't created
         showToolbar: true, // Ensure internal UI isn't created
+        showConfigPanel: true, // Enable config panel
       });
 
       setEditorController(controller);
