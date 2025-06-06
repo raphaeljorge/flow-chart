@@ -66,6 +66,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     // Handle color changes immediately for both color input and hex input
     if (name === 'color' && controller && selectedItem && itemType === 'node') {
       controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
+      setFormData(prev => ({ ...prev, [name]: finalValue }));
+      return;
     }
     
     setFormData(prev => ({ ...prev, [name]: finalValue }));
