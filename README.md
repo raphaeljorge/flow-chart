@@ -178,3 +178,95 @@ node-based-software-builder/
     * A frontend service (`src/platform/project_management/ProjectSerializer.ts`) to encapsulate the current save/load logic (which uses `localStorage`).
 * **`src/editor/services/PlatformDataService.ts`**: This new service is a crucial abstraction layer. Initially, it will talk to the local `NodeDefinitionService` and `ProjectSerializer`. In the future, it will be the single point for making HTTP requests to your actual backend API Gateway.
 * **Styling**: Styles are centralized in `src/editor/styles/`, with `theme-variables.css` promoting easier theming. Component-specific CSS can be co-located if desired.
+
+## TODO:
+
+### **Advanced Canvas Features**
+
+- ❌ **Canvas minimap/overview** for navigation in large flows
+
+- ❌ **Canvas rulers/measurements** 
+
+- ❌ **Canvas background patterns** (dots vs lines vs solid)
+
+- ❌ **Canvas zoom percentage display**
+
+
+
+### **Node Palette Enhancements**
+
+- ❌ **Favorites/recently used nodes** (no star/favorite system)
+
+- ❌ **Node preview tooltips** with detailed descriptions
+
+- ❌ **Collapsible category sections** (categories are flat tabs)
+
+
+
+### **Visual Flow Features**
+
+- ❌ **Node grouping/containers** (no way to group nodes visually)
+
+- ❌ **Node alignment tools** (align left, center, distribute equally)
+
+- ❌ **Node auto-layout** algorithms (automatic arrangement)
+
+- ❌ **Connection routing improvements** (currently straight lines, no curved/smart routing)
+
+- ❌ **Connection labels/annotations**
+
+- ❌ **Connection styles** (dashed, dotted, colored by type)
+
+
+
+### **UI/UX Enhancements**
+
+- ❌ **Breadcrumb navigation** for nested flows
+
+- ❌ **Tab system** for multiple open flows
+
+- ❌ **Split-screen view** 
+
+- ❌ **Customizable panels** (resizable, collapsible, moveable)
+
+- ❌ **Theme/appearance settings**
+
+- ❌ **Accessibility features** (keyboard navigation for screen readers)
+
+
+
+### **Enhanced Toolbar Features**
+
+- ❌ **Flow validation** indicator (check for errors/warnings)
+
+- ❌ **Auto-arrange** nodes button
+
+- ❌ **Export options** (PNG, SVG, PDF export of visual flow)
+
+- ❌ **View modes** (compact vs detailed view)
+
+- ❌ **Search in flow** (find specific nodes in large flows)
+
+
+
+### **Flow Organization**
+
+- ❌ **Subflows/nested flows** (collapse parts into reusable components)
+
+- ❌ **Flow layers** (background, main, annotations)
+
+- ❌ **Flow bookmarks** (navigate to specific parts)
+
+- ❌ **Flow outline/structure view**
+
+
+
+### **Visual Feedback**
+
+- ❌ **Smooth animations** for node creation/deletion
+
+- ❌ **Better loading states** for async operations
+
+- ❌ **Enhanced hover effects** and micro-interactions
+
+- ❌ **Visual feedback** improvements for drag operations

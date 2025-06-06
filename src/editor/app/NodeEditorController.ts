@@ -66,6 +66,7 @@ import {
 } from "../components/ContextMenu/ContextMenu";
 import { QuickAddMenu } from "../components/QuickAddMenu/QuickAddMenu";
 import { Tooltip, TooltipContent } from "../components/Tooltip/Tooltip";
+import { Minimap } from '../components/Minimap/Minimap';
 
 export class NodeEditorController {
   private container: HTMLElement;
@@ -96,12 +97,14 @@ export class NodeEditorController {
   private contextMenu: ContextMenu | null = null;
   private quickAddMenu: QuickAddMenu | null = null;
   private tooltip: Tooltip | null = null;
+  private minimap: Minimap | null = null;
 
   private paletteWrapper: HTMLElement | null = null;
   private canvasWrapper: HTMLElement | null = null;
   private configPanelWrapper: HTMLElement | null = null;
   private toolbarWrapper: HTMLElement | null = null;
   private overlayWrapper: HTMLElement | null = null;
+  private minimapWrapper: HTMLElement | null = null;
 
   private availableNodeDefinitions: NodeDefinition[] = [];
 
@@ -113,6 +116,7 @@ export class NodeEditorController {
     this.options = {
       showPalette: true,
       showToolbar: true,
+      showMinimap: true,
       defaultScale: 1,
       gridSize: 20,
       showGrid: true,
@@ -221,6 +225,12 @@ export class NodeEditorController {
       this.canvasWrapper.appendChild(this.toolbarWrapper);
     }
 
+    if (this.options.showMinimap && this.canvasWrapper) {
+      // O minimap não precisa de um wrapper separado, ele pode ser injetado diretamente
+      // no container do canvas para ficar sobreposto.
+      // O próprio componente Minimap criará seu wrapper.
+    }
+
     // A camada de overlay é sempre necessária para menus de contexto, etc.
     this.overlayWrapper = document.createElement("div");
     this.overlayWrapper.className = "editor-overlay-container";
@@ -282,6 +292,17 @@ export class NodeEditorController {
         this.iconService
       );
       this.tooltip = new Tooltip(this.overlayWrapper);
+    }
+
+    if (this.options.showMinimap && this.canvasWrapper) {
+      this.minimap = new Minimap(
+        this.canvasWrapper, // O minimap será filho do container do canvas
+        this.canvasEngine,
+        this.nodeManager,
+        this.stickyNoteManager,
+        this.viewStore,
+        this.iconService
+      );
     }
   }
 
@@ -1025,6 +1046,7 @@ export class NodeEditorController {
     this.connectionManager.destroy();
     this.nodeManager.destroy();
     this.viewStore.destroy();
+    this.minimap?.destroy();
     this.container.innerHTML = "";
     this.events.removeAllListeners();
     console.log("NodeEditorController destroyed.");

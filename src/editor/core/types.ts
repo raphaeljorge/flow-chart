@@ -174,6 +174,7 @@ export interface NodeDefinition {
 export interface NodeEditorOptions {
   showPalette: boolean;
   showToolbar: boolean;
+  showMinimap?: boolean;
   defaultScale: number;
   gridSize: number;
   showGrid: boolean;
