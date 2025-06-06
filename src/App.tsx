@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import FlowEditor from './components/FlowEditor';
 import NodePalette from './components/NodePalette';
+import ConfigPanel from './components/ConfigPanel';
 import { NodeEditorController } from './editor/app/NodeEditorController';
 
 const App: React.FC = () => {
@@ -26,6 +27,7 @@ const App: React.FC = () => {
         }}
         onEditorReady={handleEditorReady}
       />
+      <ConfigPanel controller={controller} />
       
       <div className="button-container">
         <button
