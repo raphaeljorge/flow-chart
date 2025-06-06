@@ -22,9 +22,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
         if (node) {
           setSelectedItem(node);
           setItemType('node');
-          // Include node color in formData
           setFormData({ ...node.data, color: node.color });
-          // Set active tab to first available tab or 'general'
           setActiveTab(node.config?.tabs?.[0]?.id || 'general');
           return;
         }
@@ -59,6 +57,20 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
       controller.selectionManager.off('selectionChanged', handleSelectionChange);
     };
   }, [controller]);
+
+  // Effect to auto-save changes
+  useEffect(() => {
+    if (!controller || !selectedItem || !itemType) return;
+
+    // For nodes, handle color separately from data
+    if (itemType === 'node') {
+      const { color, ...nodeData } = formData;
+      controller.nodeManager.updateNode(selectedItem.id, { color });
+      controller.applyItemConfig(selectedItem.id, itemType, nodeData);
+    } else {
+      controller.applyItemConfig(selectedItem.id, itemType, formData);
+    }
+  }, [formData, controller, selectedItem, itemType]);
 
   const renderInput = (param: ConfigParameter) => {
     const value = formData[param.id] ?? param.defaultValue ?? '';
@@ -157,19 +169,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
-  
-  const handleApplyChanges = () => {
-    if (!controller || !selectedItem || !itemType) return;
-    
-    // For nodes, handle color separately from data
-    if (itemType === 'node') {
-      const { color, ...nodeData } = formData;
-      controller.nodeManager.updateNode(selectedItem.id, { color });
-      controller.applyItemConfig(selectedItem.id, itemType, nodeData);
-    } else {
-      controller.applyItemConfig(selectedItem.id, itemType, formData);
-    }
-  };
 
   if (!selectedItem || !itemType) {
     return <div className="config-panel-wrapper">Select an item to configure</div>;
@@ -240,18 +239,14 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             ))}
         </div>
 
-        <div className="config-panel-actions">
-          <button onClick={handleApplyChanges} className="btn btn-primary">
-            <i className="ph ph-check"></i>
-            Apply
-          </button>
-          {itemType === 'node' && (
+        {itemType === 'node' && (
+          <div className="config-panel-actions">
             <button className="btn btn-secondary">
               <i className="ph ph-play"></i>
               Test
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
