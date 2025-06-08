@@ -9,7 +9,8 @@ import { Node, StickyNote, ViewState, NodePort, Connection, NodeGroup } from '..
 import {
   NODE_HEADER_HEIGHT,
   NODE_PORT_SIZE,
-  EVENT_CANVAS_BEFORE_RENDER
+  EVENT_CANVAS_BEFORE_RENDER,
+  EVENT_VIEW_CHANGED
 } from '../core/constants';
 import { NodeGroupManager, GROUP_HEADER_HEIGHT } from '../state/NodeGroupManager';
 
@@ -28,12 +29,16 @@ export class RenderService {
     private nodeGroupManager: NodeGroupManager, // Correctly added
     private selectionManager: SelectionManager,
     private interactionManager: InteractionManager,
-    private viewStore: ViewStore,
+    viewStore: ViewStore, // CORREÇÃO: Removido 'private'
   ) {
     this.canvasEngine.on(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
     this.interactionManager.on('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.on('portHoverChanged', this.handlePortHoverIdleChanged);
     this.loadThemeColors();
+    
+    // O ViewStore é necessário para obter o estado durante a renderização, mas não precisa ser uma propriedade de classe se o estado for passado para cada chamada de renderização.
+    // Neste caso, o estado da view é passado para handleBeforeRender, então não precisamos de this.viewStore.
+    viewStore.on(EVENT_VIEW_CHANGED, () => this.canvasEngine.requestRender());
   }
 
   private loadThemeColors(): void {

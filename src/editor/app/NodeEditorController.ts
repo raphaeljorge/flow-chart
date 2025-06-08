@@ -13,6 +13,7 @@ import {
   GraphState,
   InteractiveElementType,
   NodePort,
+  ClipboardableItemType,
 } from "../core/types";
 import {
   EVENT_VIEW_CHANGED,
@@ -131,7 +132,6 @@ export class NodeEditorController {
     if (!this.canvasWrapper) throw new Error("Canvas wrapper not initialized.");
     this.canvasEngine = new CanvasEngine(this.canvasWrapper, this.viewStore);
 
-    // FIXED: Correct number of arguments for InteractionManager constructor
     this.interactionManager = new InteractionManager(
       this.canvasEngine,
       this.viewStore,
@@ -487,9 +487,11 @@ export class NodeEditorController {
 
     this.quickAddMenu?.on("itemSelected", this.handleQuickAddItemChosen);
     this.contextMenu?.on("itemClicked", this.handleContextMenuItemClicked);
-    this.dndController.on("itemDropped", (item: Node | StickyNote) =>
-      this.events.emit("itemAdded", item)
-    );
+    
+    this.dndController.on("itemDropped", (item: Node | StickyNote) => {
+      this.events.emit("itemAdded", item);
+    });
+    
     this.configPanel?.on(EVENT_CONFIG_APPLIED, (item: ConfigurableItem) => {
       this.events.emit("itemConfigApplied", item);
       if (
@@ -503,9 +505,11 @@ export class NodeEditorController {
       }
       makeHistoryCheckpoint();
     });
-    this.configPanel?.on(EVENT_NODE_TEST_REQUESTED, (node: Node) =>
-      this.events.emit("testNodeRequested", node)
-    );
+    
+    this.configPanel?.on(EVENT_NODE_TEST_REQUESTED, (node: Node) => {
+      this.events.emit("testNodeRequested", node);
+    });
+
     this.configPanel?.on(
       EVENT_NODE_DATA_CHANGED_WITH_VARIABLES,
       (event: { nodeId: string; newData: any; oldData: any }) => {
@@ -859,10 +863,9 @@ export class NodeEditorController {
     }
   }
 
-  private handleContextMenuItemClicked = (
-    actionId: string,
-    context?: ContextMenuContext
-  ): void => this.events.emit("contextActionTriggered", actionId, context);
+  private handleContextMenuItemClicked = (actionId: string, context?: ContextMenuContext): void => {
+    this.events.emit("contextActionTriggered", actionId, context);
+  }
 
   private handleCanvasDoubleClick = (e: CanvasPointerEvent): void => {
     const iElem = this.interactionManager.getInteractiveElementAtPoint(
