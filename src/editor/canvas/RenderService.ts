@@ -522,11 +522,11 @@ export class RenderService {
   }
 
   private drawOrthogonalPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): void {
-      const offset = 30; // Horizontal distance to go out from the port
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p0.x + offset, p0.y);
-      ctx.lineTo(p0.x + offset, p3.y);
-      ctx.lineTo(p3.x, p3.y);
+    const midX = (p0.x + p3.x) / 2;
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(midX, p0.y); // Primeiro segmento horizontal
+    ctx.lineTo(midX, p3.y);  // Segmento vertical
+    ctx.lineTo(p3.x, p3.y);  // Segundo segmento horizontal
   }
 
   private renderPorts(): void {

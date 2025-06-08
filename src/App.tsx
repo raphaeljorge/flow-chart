@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import FlowEditor from './components/FlowEditor';
 import NodePalette from './components/NodePalette';
 import ConfigPanel from './components/ConfigPanel';
@@ -9,23 +9,27 @@ const App: React.FC = () => {
   const [controller, setController] = useState<NodeEditorController | null>(null);
   const [isPrefsVisible, setIsPrefsVisible] = useState(false);
 
-  const handleEditorReady = (editorController: NodeEditorController) => {
+  // 1. Memoize o objeto de opções para que ele não seja recriado em cada renderização.
+  const editorOptions = useMemo(() => ({
+    defaultScale: 1,
+    gridSize: 20,
+    showGrid: true,
+    snapToGrid: false,
+    showPalette: false,
+    showToolbar: true,
+  }), []);
+
+  // 2. Envolva a função de callback em useCallback para garantir que ela não mude.
+  const handleEditorReady = useCallback((editorController: NodeEditorController) => {
     setController(editorController);
     editorController.loadGraphFromLocalStorage().catch(console.error);
-  };
+  }, []);
 
   return (
     <div className="app-container">
       <NodePalette controller={controller} />
       <FlowEditor 
-        options={{
-          defaultScale: 1,
-          gridSize: 20,
-          showGrid: true,
-          snapToGrid: false,
-          showPalette: false,
-          showToolbar: true,
-        }}
+        options={editorOptions}
         onEditorReady={handleEditorReady}
       />
       <ConfigPanel controller={controller} />
