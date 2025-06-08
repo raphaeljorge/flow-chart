@@ -1,4 +1,3 @@
-// src/editor/interaction/InteractionManager.ts
 import { EventEmitter } from 'eventemitter3';
 import { CanvasEngine } from '../canvas/CanvasEngine';
 import { NodeManager } from '../state/NodeManager';
@@ -8,13 +7,15 @@ import { SelectionManager } from '../state/SelectionManager';
 import { ViewStore } from '../state/ViewStore';
 import {
   Point, Node, StickyNote, CanvasPointerEvent, CanvasWheelEvent, Rect, ViewState, NodePort, Connection,
-  InteractiveElementType, ReconnectingConnectionInfo
+  InteractiveElementType, ReconnectingConnectionInfo, NodeGroup
 } from '../core/types';
 import {
-    NODE_HEADER_HEIGHT, NODE_PORT_VERTICAL_SPACING, NODE_PORT_HIT_RADIUS,
+    NODE_HEADER_HEIGHT,
     CONNECTION_HIT_THRESHOLD, RECONNECT_HANDLE_RADIUS, MIN_NODE_WIDTH, MIN_NODE_HEIGHT,
-    RESIZE_HANDLE_SIZE, RESIZE_BORDER_THRESHOLD
+    RESIZE_BORDER_THRESHOLD, GROUP_HEADER_HEIGHT, NODE_PORT_VERTICAL_SPACING, NODE_PORT_HIT_RADIUS,
+    RESIZE_HANDLE_SIZE
 } from '../core/constants';
+import { NodeGroupManager } from '../state/NodeGroupManager';
 
 type InteractionMode =
   | 'idle'
@@ -27,7 +28,7 @@ type InteractionMode =
 
 interface DraggableItem {
   id: string;
-  type: 'node' | 'stickyNote';
+  type: 'node' | 'stickyNote' | 'group';
   position: Point;
   width: number;
   height: number;
@@ -64,11 +65,9 @@ export interface PendingConnectionState {
   reconnectingInfo?: ReconnectingConnectionInfo;
 }
 
-
 export class InteractionManager {
   private events: EventEmitter;
   private mode: InteractionMode = 'idle';
-
   private panStartClientPoint: Point | null = null;
   private dragStartCanvasPoint: Point | null = null;
   private activeDragItems: DraggableItem[] = [];
@@ -79,13 +78,13 @@ export class InteractionManager {
   private pendingConnection: PendingConnectionState | null = null;
   private lastPointerDownCanvasPoint: Point | null = null;
 
-
   constructor(
     private canvasEngine: CanvasEngine,
     private viewStore: ViewStore,
     private nodeManager: NodeManager,
     private connectionManager: ConnectionManager,
     private stickyNoteManager: StickyNoteManager,
+    private nodeGroupManager: NodeGroupManager,
     private selectionManager: SelectionManager,
   ) {
     this.events = new EventEmitter();
@@ -132,7 +131,6 @@ export class InteractionManager {
   }
 
   private getBorderRegionAtPoint(canvasPoint: Point, item: DraggableItem, viewState: ViewState): ResizeHandle['type'] | null {
-    // O limiar de detecção é em pixels da tela, então o convertemos para o "espaço do mundo"
     const threshold = RESIZE_BORDER_THRESHOLD / viewState.scale;
     const { x, y } = item.position;
     const { width, height } = item;
@@ -147,19 +145,17 @@ export class InteractionManager {
     const inXRange = canvasPoint.x > x + threshold && canvasPoint.x < right - threshold;
     const inYRange = canvasPoint.y > y + threshold && canvasPoint.y < bottom - threshold;
 
-    // Verifica os cantos primeiro
     if (onTop && onLeft) return 'nw';
     if (onTop && onRight) return 'ne';
     if (onBottom && onLeft) return 'sw';
     if (onBottom && onRight) return 'se';
     
-    // Se não estiver em um canto, verifica os lados
     if (onTop && inXRange) return 'n';
     if (onBottom && inXRange) return 's';
     if (onLeft && inYRange) return 'w';
-    if (onRight && inYRange) return 'e';
+    if (onRight && inXRange) return 'e';
 
-    return null; // Não está perto da borda
+    return null; 
   }
 
   public getInteractiveElementAtPoint(canvasPoint: Point): IdentifiedInteractiveElement {
@@ -169,22 +165,17 @@ export class InteractionManager {
     const reconHandleRadScaled = RECONNECT_HANDLE_RADIUS / currentViewState.scale;
     const selectedIds = this.selectionManager.getSelectedItems();
 
-    // Verifica a interação de redimensionamento PRIMEIRO, pois ela ocorre na borda do item.
     if (selectedIds.length === 1) {
         const selectedItem = this.findDraggableItemById(selectedIds[0]);
         if (selectedItem) {
-            // Lógica ANTIGA de getResizeHandleTypeForPoint foi substituída por esta:
             const borderRegion = this.getBorderRegionAtPoint(canvasPoint, selectedItem, currentViewState);
             if (borderRegion) {
-                // Retorna o mesmo tipo de antes para que o resto da lógica funcione sem alterações.
                 return { type: 'resizeHandle', item: selectedItem, resizeHandleType: borderRegion, id: selectedItem.id };
             }
         }
     }
 
     const nodes = this.nodeManager.getNodes();
-    // ... O RESTANTE DO MÉTODO CONTINUA EXATAMENTE IGUAL ...
-    // ... (verificação de portas, conexões e corpo dos nós) ...
     for (let i = nodes.length - 1; i >= 0; i--) {
         const node = nodes[i];
         const allPorts = [...node.fixedInputs, ...node.fixedOutputs, ...node.dynamicInputs, ...node.dynamicOutputs];
@@ -220,6 +211,9 @@ export class InteractionManager {
         if (itemHit.type === 'node') {
             const node = this.nodeManager.getNode(itemHit.id);
             if (node && canvasPoint.y < node.position.y + NODE_HEADER_HEIGHT) region = 'header';
+        } else if (itemHit.type === 'group') {
+            const group = this.nodeGroupManager.getGroup(itemHit.id);
+            if(group && canvasPoint.y < group.position.y + GROUP_HEADER_HEIGHT) region = 'header';
         }
         return { type: itemHit.type, id: itemHit.id, item: itemHit, region };
     }
@@ -229,7 +223,7 @@ export class InteractionManager {
   private isPointNearBezierConnection(point: Point, p0: Point, p3: Point, threshold: number): boolean {
     const minX = Math.min(p0.x, p3.x) - threshold * 5; const maxX = Math.max(p0.x, p3.x) + threshold * 5;
     const minY = Math.min(p0.y, p3.y) - threshold * 5; const maxY = Math.max(p0.y, p3.y) + threshold * 5;
-    if (point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) return false;
+    if (point.x < minX || point.x > maxX || point.y < minY || point.y < maxY) return false;
     const lenSq = (p3.x - p0.x) ** 2 + (p3.y - p0.y) ** 2;
     if (lenSq === 0) return Math.sqrt((point.x - p0.x) ** 2 + (point.y - p0.y) ** 2) < threshold;
     let t = ((point.x - p0.x) * (p3.x - p0.x) + (point.y - p0.y) * (p3.y - p0.y)) / lenSq;
@@ -245,14 +239,21 @@ export class InteractionManager {
 
   private nodeToDraggableItem(node: Node): DraggableItem { return { id: node.id, type: 'node', position: { ...node.position }, width: node.width, height: node.height }; }
   private stickyToDraggableItem(note: StickyNote): DraggableItem { return { id: note.id, type: 'stickyNote', position: { ...note.position }, width: note.width, height: note.height }; }
+  private groupToDraggableItem(group: NodeGroup): DraggableItem { return { id: group.id, type: 'group', position: { ...group.position }, width: group.width, height: group.height }; }
 
   private handlePointerDown = (e: CanvasPointerEvent): void => {
     const { canvasPoint, originalEvent, clientPoint } = e;
     this.lastPointerDownCanvasPoint = canvasPoint;
     const interactiveElement = this.getInteractiveElementAtPoint(canvasPoint);
+
     if (this.mode === 'draggingConnection' || this.mode === 'reconnectingConnection') {
-        if (originalEvent.button === 2) { this.cancelPendingOrReconnectingConnection(); originalEvent.preventDefault(); return; }
+        if (originalEvent instanceof MouseEvent && originalEvent.button === 2) {
+             this.cancelPendingOrReconnectingConnection();
+             originalEvent.preventDefault(); 
+             return; 
+        }
     }
+
     switch (interactiveElement.type) {
       case 'resizeHandle':
         if (interactiveElement.item && interactiveElement.resizeHandleType) {
@@ -310,25 +311,45 @@ export class InteractionManager {
             }
         }
         break;
-      case 'node': case 'stickyNote':
+      case 'node': 
+      case 'stickyNote':
+      case 'group':
         if (interactiveElement.item) {
           this.mode = 'draggingItems'; this.dragStartCanvasPoint = canvasPoint;
           if (originalEvent.metaKey || originalEvent.ctrlKey) this.selectionManager.toggleSelection(interactiveElement.item.id);
           else if (!this.selectionManager.isSelected(interactiveElement.item.id)) this.selectionManager.selectItem(interactiveElement.item.id, false);
+          
           this.activeDragItems = this.selectionManager.getSelectedItems().map(id => this.findDraggableItemById(id)).filter(item => item !== null) as DraggableItem[];
+          
           if (this.activeDragItems.length === 0 && interactiveElement.item) this.activeDragItems = [interactiveElement.item];
-          this.dragStartItemOffsets.clear(); this.activeDragItems.forEach(item => this.dragStartItemOffsets.set(item.id, { ...item.position }));
+          
+          if (interactiveElement.type === 'group' && this.selectionManager.isSelected(interactiveElement.item.id)) {
+              const group = this.nodeGroupManager.getGroup(interactiveElement.item.id);
+              if (group) {
+                  group.childNodes.forEach(nodeId => {
+                      if (!this.activeDragItems.some(item => item.id === nodeId)) {
+                          const nodeItem = this.findDraggableItemById(nodeId);
+                          if (nodeItem) this.activeDragItems.push(nodeItem);
+                      }
+                  });
+              }
+          }
+
+          this.dragStartItemOffsets.clear(); 
+          this.activeDragItems.forEach(item => this.dragStartItemOffsets.set(item.id, { ...item.position }));
           this.events.emit('itemsDragStart', this.activeDragItems.map(i => i.id));
         }
         break;
       case 'canvas': default:
-        if (originalEvent.button === 1 || (originalEvent.button === 0 && originalEvent.altKey)) {
-          this.mode = 'panning'; this.panStartClientPoint = { x: clientPoint.x, y: clientPoint.y }; this.setCursor('grabbing');
-        } else if (originalEvent.button === 0) {
-          if (!originalEvent.shiftKey && !originalEvent.metaKey && !originalEvent.ctrlKey) this.selectionManager.clearSelection();
-          this.mode = 'boxSelecting'; this.boxSelectStartCanvasPoint = canvasPoint;
-          this.boxSelectRect = { ...canvasPoint, width: 0, height: 0 };
-          this.events.emit('boxSelectStart', this.boxSelectRect); this.canvasEngine.requestRender();
+        if (originalEvent instanceof MouseEvent) {
+            if (originalEvent.button === 1 || (originalEvent.button === 0 && originalEvent.altKey)) {
+              this.mode = 'panning'; this.panStartClientPoint = { x: clientPoint.x, y: clientPoint.y }; this.setCursor('grabbing');
+            } else if (originalEvent.button === 0) {
+              if (!originalEvent.shiftKey && !originalEvent.metaKey && !originalEvent.ctrlKey) this.selectionManager.clearSelection();
+              this.mode = 'boxSelecting'; this.boxSelectStartCanvasPoint = canvasPoint;
+              this.boxSelectRect = { ...canvasPoint, width: 0, height: 0 };
+              this.events.emit('boxSelectStart', this.boxSelectRect); this.canvasEngine.requestRender();
+            }
         }
         break;
     }
@@ -361,7 +382,7 @@ export class InteractionManager {
             case 'resizeHandle': if(interactiveElement.resizeHandleType) newCursor = this.getCursorForResizeHandle(interactiveElement.resizeHandleType); break;
             case 'port': if (!interactiveElement.portDetails?.isHidden) { newCursor = 'pointer'; hoveredPort = interactiveElement.portDetails!.id; } break;
             case 'connection': newCursor = 'pointer'; break;
-            case 'node': case 'stickyNote': newCursor = (interactiveElement.region === 'header' || interactiveElement.region === 'body') ? 'move' : 'default'; break;
+            case 'node': case 'stickyNote': case 'group': newCursor = (interactiveElement.region === 'header' || interactiveElement.region === 'body') ? 'move' : 'default'; break;
         }
         this.setCursor(newCursor); this.events.emit('portHoverChanged', hoveredPort);
     }
@@ -374,16 +395,44 @@ export class InteractionManager {
         break;
       case 'draggingItems':
         if (this.dragStartCanvasPoint && this.activeDragItems.length > 0) {
-          const viewState = this.viewStore.getState(); const dx = canvasPoint.x - this.dragStartCanvasPoint.x; const dy = canvasPoint.y - this.dragStartCanvasPoint.y;
-          this.activeDragItems.forEach(dragItem => {
-            const initialPos = this.dragStartItemOffsets.get(dragItem.id); if (!initialPos) return;
-            let newX = initialPos.x + dx; let newY = initialPos.y + dy;
-            if (viewState.snapToGrid) { newX = Math.round(newX / viewState.gridSize) * viewState.gridSize; newY = Math.round(newY / viewState.gridSize) * viewState.gridSize; }
-            if (dragItem.type === 'node') this.nodeManager.moveNode(dragItem.id, { x: newX, y: newY });
-            else if (dragItem.type === 'stickyNote') this.stickyNoteManager.updateNote(dragItem.id, { position: { x: newX, y: newY } });
-          });
-          this.events.emit('itemsDrag', this.activeDragItems.map(i => i.id));
-          this.canvasEngine.requestRender(); this.setCursor('grabbing');
+            const viewState = this.viewStore.getState();
+            const dx = canvasPoint.x - this.dragStartCanvasPoint.x;
+            const dy = canvasPoint.y - this.dragStartCanvasPoint.y;
+            
+            this.activeDragItems.forEach(dragItem => {
+                const initialPos = this.dragStartItemOffsets.get(dragItem.id);
+                if (!initialPos) return;
+
+                let newX = initialPos.x + dx;
+                let newY = initialPos.y + dy;
+                
+                if (viewState.snapToGrid) {
+                    newX = Math.round(newX / viewState.gridSize) * viewState.gridSize;
+                    newY = Math.round(newY / viewState.gridSize) * viewState.gridSize;
+                }
+                
+                // For groups, we only update the group's position directly. 
+                // The group's own position is updated, and the nodes will be updated relative to it, but not here.
+                // The actual child node movement happens based on the group's delta, not a fresh calculation.
+                if (dragItem.type === 'node') {
+                    this.nodeManager.moveNode(dragItem.id, { x: newX, y: newY });
+                } else if (dragItem.type === 'stickyNote') {
+                    this.stickyNoteManager.updateNote(dragItem.id, { position: { x: newX, y: newY } });
+                } else if(dragItem.type === 'group') {
+                    const group = this.nodeGroupManager.getGroup(dragItem.id);
+                    if (group) {
+                      const groupDeltaX = newX - group.position.x;
+                      const groupDeltaY = newY - group.position.y;
+                      if(Math.abs(groupDeltaX) > 0 || Math.abs(groupDeltaY) > 0) {
+                        this.nodeGroupManager.moveGroup(dragItem.id, { x: groupDeltaX, y: groupDeltaY });
+                      }
+                    }
+                }
+            });
+
+            this.events.emit('itemsDrag', this.activeDragItems.map(i => i.id));
+            this.canvasEngine.requestRender();
+            this.setCursor('grabbing');
         }
         break;
       case 'resizingItem':
@@ -424,19 +473,15 @@ export class InteractionManager {
   private handlePointerUp = (e: CanvasPointerEvent): void => {
     const { canvasPoint, originalEvent } = e;
 
-    // Handle connection dragging/reconnecting first
     if ((this.mode === 'draggingConnection' || this.mode === 'reconnectingConnection') && this.pendingConnection) {
-      const currentPendingConnection = this.pendingConnection; // Copy for use after clearing
+      const currentPendingConnection = this.pendingConnection; 
       const currentMode = this.mode;
       let connectionAttempted = false;
 
-      // IMPORTANT: Reset pending state *before* trying to complete,
-      // to prevent the line from being drawn in the render frame triggered by connection events.
       this.pendingConnection = null;
-      this.mode = 'idle'; // Set mode to idle immediately
+      this.mode = 'idle';
       this.setCursor('default');
-      this.events.emit('compatiblePortHoverChanged', null); // Clear hover
-      // Request a render to clear the pending line *before* connection events fire.
+      this.events.emit('compatiblePortHoverChanged', null);
       this.canvasEngine.requestRender();
 
 
@@ -457,7 +502,6 @@ export class InteractionManager {
             }
           }
       } finally {
-          // If no connection was made (e.g., dropped on canvas or incompatible port)
           if (!connectionAttempted) {
               if (currentPendingConnection.reconnectingInfo) {
                   this.events.emit('reconnectionCancel', currentPendingConnection);
@@ -465,12 +509,29 @@ export class InteractionManager {
                   this.events.emit('pendingConnectionCancel', currentPendingConnection);
               }
           }
-          // State (pendingConnection, mode, cursor) is already reset.
-          // A final render might be needed if other logic below changes things,
-          // but the critical render to remove the line was done above.
       }
     } else if (this.mode === 'draggingItems' && this.activeDragItems.length > 0) {
-      this.events.emit('itemsDragEnd', this.activeDragItems.map(i=> i.id));
+        // Drop logic: check if a node is dropped into a group
+        const draggedNodes = this.activeDragItems.filter(item => item.type === 'node');
+        if(draggedNodes.length > 0) {
+            const targetElement = this.getInteractiveElementAtPoint(canvasPoint);
+            let targetGroup: NodeGroup | null = null;
+            if(targetElement.type === 'group' && targetElement.item) {
+                targetGroup = this.nodeGroupManager.getGroup(targetElement.item.id) || null;
+            }
+
+            draggedNodes.forEach(draggedNode => {
+                const node = this.nodeManager.getNode(draggedNode.id);
+                if (!node) return;
+
+                if (targetGroup && node.groupId !== targetGroup.id) {
+                    this.nodeGroupManager.addNodeToGroup(targetGroup.id, node.id);
+                } else if (!targetGroup && node.groupId) {
+                    this.nodeGroupManager.removeNodeFromGroup(node.groupId, node.id);
+                }
+            });
+        }
+        this.events.emit('itemsDragEnd', this.activeDragItems.map(i => i.id));
     } else if (this.mode === 'resizingItem' && this.activeResizeState) {
       this.events.emit('itemResizeEnd', this.findDraggableItemById(this.activeResizeState.item.id));
     } else if (this.mode === 'boxSelecting' && this.boxSelectRect) {
@@ -482,9 +543,7 @@ export class InteractionManager {
       this.boxSelectRect = null;
     }
 
-    // General cleanup that should always happen on pointer up,
-    // if not already handled by a specific mode's reset (like connection cancellation)
-    if (this.mode !== 'idle') { // If mode wasn't reset by a specific handler above
+    if (this.mode !== 'idle') { 
         this.mode = 'idle';
         this.setCursor('default');
     }
@@ -494,19 +553,16 @@ export class InteractionManager {
     this.dragStartItemOffsets.clear();
     this.activeResizeState = null;
     this.boxSelectStartCanvasPoint = null;
-    // this.boxSelectRect cleared above for its specific mode.
 
-    this.canvasEngine.requestRender(); // Final render for any other state changes in pointerUp
+    this.canvasEngine.requestRender();
   };
 
   private handlePointerLeave = (e: CanvasPointerEvent): void => {
     if (this.mode === 'draggingItems' || this.mode === 'panning' || this.mode === 'resizingItem' || this.mode === 'boxSelecting') {
-        this.handlePointerUp(e); // Finalize ongoing interaction
+        this.handlePointerUp(e);
     } else if (this.mode === 'draggingConnection' || this.mode === 'reconnectingConnection') {
-        // If dragging a connection off canvas, treat it as a cancel
         this.cancelPendingOrReconnectingConnection();
     }
-    // General cursor reset if mode is now idle
     if (this.mode === 'idle') {
         this.setCursor('default');
         this.events.emit('portHoverChanged', null);
@@ -523,7 +579,6 @@ export class InteractionManager {
     else { this.connectionManager.createConnection(reconInfo.originalConnection.sourcePortId, reconInfo.originalConnection.targetPortId); this.events.emit('reconnectionFailed', reconInfo.originalConnection); this.selectionManager.selectItem(reconInfo.originalConnection.id, false); }
   }
 
-  // Now made public if NodeEditorController needs to call it (e.g. on Escape key)
   public cancelPendingOrReconnectingConnection(): void {
     const wasPending = !!this.pendingConnection;
     if (this.pendingConnection) {
@@ -531,11 +586,11 @@ export class InteractionManager {
         else this.events.emit('pendingConnectionCancel', this.pendingConnection);
     }
     this.pendingConnection = null;
-    this.mode = 'idle'; // CRITICAL: Reset mode here
-    this.setCursor('default'); // CRITICAL: Reset cursor here
+    this.mode = 'idle'; 
+    this.setCursor('default'); 
     if (wasPending) {
         this.events.emit('compatiblePortHoverChanged', null);
-        this.canvasEngine.requestRender(); // Request render to clear the line
+        this.canvasEngine.requestRender();
     }
   }
 
@@ -550,17 +605,29 @@ export class InteractionManager {
     if (!this.activeResizeState) return;
     const { item, handle, originalRect, startCanvasPoint } = this.activeResizeState;
     const viewState = this.viewStore.getState();
-    let actualItem: Node | StickyNote | undefined;
-    if (item.type === 'node') actualItem = this.nodeManager.getNode(item.id); else actualItem = this.stickyNoteManager.getNote(item.id);
+    let actualItem: Node | StickyNote | NodeGroup | undefined;
+    
+    if (item.type === 'node') actualItem = this.nodeManager.getNode(item.id);
+    else if (item.type === 'stickyNote') actualItem = this.stickyNoteManager.getNote(item.id);
+    else if (item.type === 'group') actualItem = this.nodeGroupManager.getGroup(item.id);
+
     let minHeight = MIN_NODE_HEIGHT;
-    if (actualItem && actualItem.type === 'node') {
-        const node = actualItem as Node;
-        const visibleInputs = [...node.fixedInputs, ...node.dynamicInputs.filter(p => !p.isHidden)].length;
-        const visibleOutputs = [...node.fixedOutputs, ...node.dynamicOutputs.filter(p => !p.isHidden)].length;
-        const requiredPortSpace = Math.max(visibleInputs, visibleOutputs) * NODE_PORT_VERTICAL_SPACING;
-        minHeight = NODE_HEADER_HEIGHT + requiredPortSpace + NODE_PORT_VERTICAL_SPACING;
-        minHeight = Math.max(minHeight, node.minHeight || MIN_NODE_HEIGHT);
-    } else if (actualItem && actualItem.type === 'stickyNote') minHeight = (actualItem as StickyNote).style.fontSize * 2;
+
+    if (actualItem) {
+        if ('fixedInputs' in actualItem) { // It's a Node
+            const node = actualItem as Node;
+            const visibleInputs = [...node.fixedInputs, ...node.dynamicInputs.filter(p => !p.isHidden)].length;
+            const visibleOutputs = [...node.fixedOutputs, ...node.dynamicOutputs.filter(p => !p.isHidden)].length;
+            const requiredPortSpace = Math.max(visibleInputs, visibleOutputs) * NODE_PORT_VERTICAL_SPACING;
+            minHeight = NODE_HEADER_HEIGHT + requiredPortSpace;
+            minHeight = Math.max(minHeight, node.minHeight || MIN_NODE_HEIGHT);
+        } else if ('content' in actualItem) { // It's a StickyNote
+             minHeight = (actualItem as StickyNote).style.fontSize * 2;
+        } else if ('childNodes' in actualItem) { // It's a NodeGroup
+            minHeight = (actualItem as NodeGroup).minHeight || 100;
+        }
+    }
+
     const minWidth = actualItem?.minWidth || MIN_NODE_WIDTH;
     let newX = originalRect.x; let newY = originalRect.y;
     let newWidth = originalRect.width; let newHeight = originalRect.height;
@@ -575,8 +642,10 @@ export class InteractionManager {
         newWidth = Math.max(minWidth, rE - newX); newHeight = Math.max(minHeight, bE - newY);
     }
     const newRect: Rect = { x: newX, y: newY, width: newWidth, height: newHeight };
+    
     if (item.type === 'node') this.nodeManager.resizeNode(item.id, newRect);
     else if (item.type === 'stickyNote') this.stickyNoteManager.updateNoteRect(item.id, newRect);
+    else if (item.type === 'group') this.nodeGroupManager.resizeGroup(item.id, newRect);
   }
 
   private handleWheel = (e: CanvasWheelEvent): void => { this.canvasEngine.zoom(e.deltaY, e.clientPoint); };
@@ -584,19 +653,26 @@ export class InteractionManager {
   public findDraggableItemById(id: string): DraggableItem | null {
     const node = this.nodeManager.getNode(id); if (node) return this.nodeToDraggableItem(node);
     const stickyNote = this.stickyNoteManager.getNote(id); if (stickyNote) return this.stickyToDraggableItem(stickyNote);
+    const group = this.nodeGroupManager.getGroup(id); if (group) return this.groupToDraggableItem(group);
     return null;
   }
   
   private getItemBodyAtPoint(canvasPoint: Point): DraggableItem | null {
+    const nodes = this.nodeManager.getNodes();
+    for (let i = nodes.length - 1; i >= 0; i--) {
+        const node = nodes[i];
+        if (this.isPointInRect(canvasPoint, node.position, { width: node.width, height: node.height })) return this.nodeToDraggableItem(node);
+    }
     const stickyNotes = this.stickyNoteManager.getNotes();
     for (let i = stickyNotes.length - 1; i >= 0; i--) {
         const note = stickyNotes[i];
         if (this.isPointInRect(canvasPoint, note.position, { width: note.width, height: note.height })) return this.stickyToDraggableItem(note);
     }
-    const nodes = this.nodeManager.getNodes();
-    for (let i = nodes.length - 1; i >= 0; i--) {
-        const node = nodes[i];
-        if (this.isPointInRect(canvasPoint, node.position, { width: node.width, height: node.height })) return this.nodeToDraggableItem(node);
+    // Check groups last, so nodes/notes on top are prioritized
+    const groups = this.nodeGroupManager.getGroups();
+    for (let i = groups.length - 1; i >= 0; i--) {
+        const group = groups[i];
+        if (this.isPointInRect(canvasPoint, group.position, { width: group.width, height: group.height })) return this.groupToDraggableItem(group);
     }
     return null;
   }
@@ -632,6 +708,7 @@ export class InteractionManager {
     const allDraggableItems: DraggableItem[] = [
       ...this.nodeManager.getNodes().map(n => this.nodeToDraggableItem(n)),
       ...this.stickyNoteManager.getNotes().map(sn => this.stickyToDraggableItem(sn)),
+      ...this.nodeGroupManager.getGroups().map(g => this.groupToDraggableItem(g)),
     ];
     return allDraggableItems.filter(item => {
       const itemRect = { ...item.position, width: item.width, height: item.height };

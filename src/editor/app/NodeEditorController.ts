@@ -1,5 +1,3 @@
-// raphaeljorge/flow-chart/flow-chart-a2c8a12e5015216d4dd318cbcb87273e5d4507ec/src/editor/app/NodeEditorController.ts
-// src/editor/app/NodeEditorController.ts
 import { EventEmitter } from "eventemitter3";
 import {
   NodeEditorOptions,
@@ -13,7 +11,8 @@ import {
   ConfigurableItem,
   ConfigurableItemType,
   GraphState,
-  ClipboardItem,
+  InteractiveElementType,
+  NodePort,
 } from "../core/types";
 import {
   EVENT_VIEW_CHANGED,
@@ -23,6 +22,7 @@ import {
   EVENT_NODES_UPDATED,
   EVENT_CONNECTIONS_UPDATED,
   EVENT_NOTES_UPDATED,
+  EVENT_GROUPS_UPDATED,
   LOCAL_STORAGE_GRAPH_KEY,
   ALL_NODE_DEFINITIONS as FALLBACK_NODE_DEFINITIONS,
   EVENT_CONFIG_APPLIED,
@@ -32,35 +32,22 @@ import {
 
 import { CanvasEngine } from "../canvas/CanvasEngine";
 import { RenderService } from "../canvas/RenderService";
-
 import { NodeManager } from "../state/NodeManager";
 import { ConnectionManager } from "../state/ConnectionManager";
 import { StickyNoteManager } from "../state/StickyNoteManager";
 import { SelectionManager } from "../state/SelectionManager";
-import {
-  ClipboardManager,
-  ClipboardableItemType,
-} from "../state/ClipboardManager";
+import { NodeGroupManager } from '../state/NodeGroupManager';
+import { ClipboardManager } from "../state/ClipboardManager";
 import { HistoryManager } from "../state/HistoryManager";
 import { ViewStore } from "../state/ViewStore";
-
-import {
-  InteractionManager,
-  PendingConnectionState,
-} from "../interaction/InteractionManager";
+import { InteractionManager } from "../interaction/InteractionManager";
 import { ShortcutManager } from "../interaction/ShortcutManager";
 import { DndController } from "../interaction/DndController";
-
 import { EditorIconService } from "../services/EditorIconService";
 import { PlatformDataService } from "../services/PlatformDataService";
-
 import { NodePalette } from "../components/NodePalette/NodePalette";
 import { ConfigPanel } from "../components/ConfigPanel/ConfigPanel";
-import {
-  Toolbar,
-  ToolbarButtonDefinition,
-  ToolbarDisplayDefinition,
-} from "../components/Toolbar/Toolbar";
+import { Toolbar } from "../components/Toolbar/Toolbar";
 import {
   ContextMenu,
   ContextMenuItemAction,
@@ -81,6 +68,7 @@ export class NodeEditorController {
   public nodeManager: NodeManager;
   public connectionManager: ConnectionManager;
   public stickyNoteManager: StickyNoteManager;
+  public nodeGroupManager: NodeGroupManager;
   public selectionManager: SelectionManager;
   public clipboardManager: ClipboardManager;
   public historyManager: HistoryManager;
@@ -93,7 +81,7 @@ export class NodeEditorController {
   public platformDataService: PlatformDataService;
 
   private nodePalette: NodePalette | null = null;
-  private configPanel: ConfigPanel | null = null;
+  public configPanel: ConfigPanel | null = null;
   private toolbar: Toolbar | null = null;
   private contextMenu: ContextMenu | null = null;
   private quickAddMenu: QuickAddMenu | null = null;
@@ -115,6 +103,7 @@ export class NodeEditorController {
     this.options = {
       showPalette: true,
       showToolbar: true,
+      showConfigPanel: true,
       defaultScale: 1,
       gridSize: 20,
       showGrid: true,
@@ -129,13 +118,12 @@ export class NodeEditorController {
 
     this.iconService = new EditorIconService();
     this.platformDataService = new PlatformDataService();
-    this.viewStore = new ViewStore({
-      /* ... initial view state ... */
-    });
+    this.viewStore = new ViewStore({});
 
     this.nodeManager = new NodeManager();
     this.connectionManager = new ConnectionManager(this.nodeManager);
     this.stickyNoteManager = new StickyNoteManager();
+    this.nodeGroupManager = new NodeGroupManager(this.nodeManager);
     this.selectionManager = new SelectionManager();
     this.clipboardManager = new ClipboardManager();
     this.historyManager = new HistoryManager();
@@ -143,12 +131,14 @@ export class NodeEditorController {
     if (!this.canvasWrapper) throw new Error("Canvas wrapper not initialized.");
     this.canvasEngine = new CanvasEngine(this.canvasWrapper, this.viewStore);
 
+    // FIXED: Correct number of arguments for InteractionManager constructor
     this.interactionManager = new InteractionManager(
       this.canvasEngine,
       this.viewStore,
       this.nodeManager,
       this.connectionManager,
       this.stickyNoteManager,
+      this.nodeGroupManager,
       this.selectionManager
     );
 
@@ -162,19 +152,19 @@ export class NodeEditorController {
       this.selectionManager,
       (id: string) => this.availableNodeDefinitions.find((def) => def.id === id)
     );
-
+    
     this.renderService = new RenderService(
       this.canvasEngine,
       this.nodeManager,
       this.connectionManager,
       this.stickyNoteManager,
+      this.nodeGroupManager,
       this.selectionManager,
       this.interactionManager,
       this.viewStore
     );
 
     this.initializeUIComponents();
-
     this.wireUpCoreEvents();
     this.wireUpShortcuts();
     this.loadInitialNodeDefinitions().then(() => {
@@ -191,24 +181,19 @@ export class NodeEditorController {
   }
 
   private setupDOMStructure(): void {
-    // A estrutura do DOM é simplificada. O 'container' principal pode ser apenas para o canvas
-    // se os painéis forem externos (criados no React).
     this.container.innerHTML = "";
     this.container.style.position = "relative";
     this.container.style.width = "100%";
     this.container.style.height = "100%";
 
-    // O canvas sempre é criado dentro do container principal fornecido.
     this.canvasWrapper = document.createElement("div");
     this.canvasWrapper.className = "canvas-container";
     this.container.appendChild(this.canvasWrapper);
 
-    // Os wrappers dos painéis só são criados se as opções estiverem habilitadas.
-    // Na sua aplicação React, você não os criará, mas a biblioteca ainda suporta.
     if (this.options.showPalette) {
       this.paletteWrapper = document.createElement("div");
       this.paletteWrapper.className = "node-palette-wrapper";
-      this.container.prepend(this.paletteWrapper); // Adiciona no início
+      this.container.prepend(this.paletteWrapper);
     }
 
     if (this.options.showConfigPanel) {
@@ -222,11 +207,10 @@ export class NodeEditorController {
       this.toolbarWrapper.className = "toolbar-wrapper";
       this.canvasWrapper.appendChild(this.toolbarWrapper);
     }
-
-    // A camada de overlay é sempre necessária para menus de contexto, etc.
+    
     this.overlayWrapper = document.createElement("div");
     this.overlayWrapper.className = "editor-overlay-container";
-    this.canvasWrapper.appendChild(this.overlayWrapper); // Anexado ao wrapper do canvas
+    this.canvasWrapper.appendChild(this.overlayWrapper);
   }
 
   private async loadInitialNodeDefinitions(): Promise<void> {
@@ -236,18 +220,7 @@ export class NodeEditorController {
     } catch (error) {
       console.error("Failed to load node definitions, using fallback:", error);
       this.availableNodeDefinitions = FALLBACK_NODE_DEFINITIONS.map((pd) => ({
-        id: pd.id,
-        title: pd.title,
-        description: pd.description,
-        category: pd.category,
-        icon: pd.icon,
-        config: pd.config,
-        defaultWidth: pd.defaultWidth,
-        defaultHeight: pd.defaultHeight,
-        minWidth: pd.minWidth,
-        minHeight: pd.minHeight,
-        defaultInputs: pd.defaultInputs?.map((i) => ({ ...i })),
-        defaultOutputs: pd.defaultOutputs?.map((o) => ({ ...o })),
+        ...pd,
       }));
     }
     this.nodePalette?.updateNodeDefinitions(this.availableNodeDefinitions);
@@ -269,6 +242,7 @@ export class NodeEditorController {
         this.nodeManager,
         this.connectionManager,
         this.stickyNoteManager,
+        this.nodeGroupManager,
         this.iconService
       );
     }
@@ -398,39 +372,20 @@ export class NodeEditorController {
   }
 
   private wireUpCoreEvents(): void {
-    this.nodeManager.on(EVENT_NODES_UPDATED, () =>
-      this.canvasEngine.requestRender()
-    );
-    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () =>
-      this.canvasEngine.requestRender()
-    );
-    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () =>
-      this.canvasEngine.requestRender()
-    );
+    this.nodeManager.on(EVENT_NODES_UPDATED, () => this.canvasEngine.requestRender());
+    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () => this.canvasEngine.requestRender());
+    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () => this.canvasEngine.requestRender());
+    this.nodeGroupManager.on(EVENT_GROUPS_UPDATED, () => this.canvasEngine.requestRender());
 
-    this.viewStore.on(EVENT_VIEW_CHANGED, () =>
-      this.toolbar?.refresh()
-    );
-    this.historyManager.on(EVENT_HISTORY_CHANGED, () =>
-      this.toolbar?.refresh()
-    );
-    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () =>
-      this.toolbar?.refresh()
-    );
-    this.selectionManager.on(EVENT_SELECTION_CHANGED, () =>
-      this.toolbar?.refresh()
-    );
-    this.interactionManager.on(
-      "canvasContextMenu",
-      this.handleCanvasContextMenu
-    );
-    this.interactionManager.on(
-      "canvasDoubleClick",
-      this.handleCanvasDoubleClick
-    );
+    this.viewStore.on(EVENT_VIEW_CHANGED, () => this.toolbar?.refresh());
+    this.historyManager.on(EVENT_HISTORY_CHANGED, () => this.toolbar?.refresh());
+    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () => this.toolbar?.refresh());
+    this.selectionManager.on(EVENT_SELECTION_CHANGED, () => this.toolbar?.refresh());
+    
+    this.interactionManager.on("canvasContextMenu", this.handleCanvasContextMenu);
+    this.interactionManager.on("canvasDoubleClick", this.handleCanvasDoubleClick);
 
     const makeHistoryCheckpoint = () => {
-      // Use the public getter from HistoryManager
       if (!this.historyManager.isRestoringState()) {
         this.historyManager.push(this.getCurrentGraphState());
       }
@@ -451,6 +406,12 @@ export class NodeEditorController {
     this.stickyNoteManager.on("noteCreated", makeHistoryCheckpoint);
     this.stickyNoteManager.on("noteUpdated", makeHistoryCheckpoint);
     this.stickyNoteManager.on("noteDeleted", makeHistoryCheckpoint);
+    this.nodeGroupManager.on('groupCreated', makeHistoryCheckpoint);
+    this.nodeGroupManager.on('groupMoved', makeHistoryCheckpoint);
+    this.nodeGroupManager.on('groupResized', makeHistoryCheckpoint);
+    this.nodeGroupManager.on('groupDeleted', makeHistoryCheckpoint);
+    this.nodeGroupManager.on('nodeAddedToGroup', makeHistoryCheckpoint);
+    this.nodeGroupManager.on('nodeRemovedFromGroup', makeHistoryCheckpoint);
 
     let tooltipHoverTimeout: number | null = null;
     this.interactionManager.on(
@@ -508,6 +469,12 @@ export class NodeEditorController {
               id: p.id.slice(0, 8),
             };
           }
+
+          if (elementInfo.type === 'group' && elementInfo.item) {
+            const g = this.nodeGroupManager.getGroup(elementInfo.item.id);
+            if (g) content = { title: g.title, type: 'Group', description: `${g.childNodes.size} nodes`, id: g.id.slice(0, 8) };
+          }
+
           if (content && this.tooltip)
             this.tooltip.scheduleShow(clientPoint, content);
         }, 500);
@@ -529,11 +496,9 @@ export class NodeEditorController {
         this.configPanel &&
         this.selectionManager.getSingleSelectedItem() === item.id
       ) {
-        const itemType = item.hasOwnProperty("fixedInputs")
-          ? "node"
-          : item.hasOwnProperty("content")
-          ? "stickyNote"
-          : "connection";
+        const itemType = item.hasOwnProperty("childNodes") ? "group" :
+            (item.hasOwnProperty("fixedInputs") ? "node" : 
+            (item.hasOwnProperty("content") ? "stickyNote" : "connection"));
         this.configPanel.show(item, itemType as ConfigurableItemType);
       }
       makeHistoryCheckpoint();
@@ -603,48 +568,37 @@ export class NodeEditorController {
       x: this.canvasEngine.getCanvasElement().width / 2,
       y: this.canvasEngine.getCanvasElement().height / 2,
     });
-    const itemsToPaste =
-      this.clipboardManager.preparePasteData(pasteCenterCanvas);
+    const itemsToPaste = this.clipboardManager.preparePasteData(pasteCenterCanvas);
     const newPastedItemIds: string[] = [];
+    
     itemsToPaste.forEach((clipboardItem) => {
       let pastedItem: Node | StickyNote | null = null;
       const { type, data } = clipboardItem;
       if (type === "node") {
         const nodeData = data as Node;
-        const definition = this.availableNodeDefinitions.find(
-          (def) => def.id === nodeData.type
-        );
+        const definition = this.availableNodeDefinitions.find(def => def.id === nodeData.type);
         if (definition) {
-          pastedItem = this.nodeManager.createNodeFromDefinition(
-            definition,
-            nodeData.position
-          );
+          pastedItem = this.nodeManager.createNodeFromDefinition(definition, nodeData.position);
+          
+          nodeData.dynamicInputs?.forEach(p => this.nodeManager.addDynamicInputPort(pastedItem!.id, p.variableName || p.name, p.isHidden));
+          nodeData.dynamicOutputs?.forEach(p => this.nodeManager.addDynamicOutputPort(pastedItem!.id, p.name, p.outputValue || ''));
+
           this.nodeManager.updateNode(pastedItem.id, {
             title: nodeData.title,
             width: nodeData.width,
             height: nodeData.height,
-            dynamicInputs: JSON.parse(
-              JSON.stringify(nodeData.dynamicInputs || [])
-            ),
-            dynamicOutputs: JSON.parse(
-              JSON.stringify(nodeData.dynamicOutputs || [])
-            ),
             data: JSON.parse(JSON.stringify(nodeData.data || {})),
             status: "unsaved",
           });
         }
       } else if (type === "stickyNote") {
         const noteData = data as StickyNote;
-        pastedItem = this.stickyNoteManager.createNote(
-          noteData.position,
-          noteData.content,
-          noteData.width,
-          noteData.height
-        );
+        pastedItem = this.stickyNoteManager.createNote(noteData.position, noteData.content, noteData.width, noteData.height);
         this.stickyNoteManager.updateNoteStyle(pastedItem.id, noteData.style);
       }
       if (pastedItem) newPastedItemIds.push(pastedItem.id);
     });
+
     if (newPastedItemIds.length > 0) {
       this.selectionManager.selectItems(newPastedItemIds, false);
       this.events.emit("itemsPasted", newPastedItemIds);
@@ -663,17 +617,22 @@ export class NodeEditorController {
     const nodesToDelete: string[] = [];
     const stickiesToDelete: string[] = [];
     const connectionsToDelete: string[] = [];
+    const groupsToDelete: string[] = [];
+    
     selectedIds.forEach((id) => {
       if (this.nodeManager.getNode(id)) nodesToDelete.push(id);
       else if (this.stickyNoteManager.getNote(id)) stickiesToDelete.push(id);
-      else if (this.connectionManager.getConnection(id))
-        connectionsToDelete.push(id);
+      else if (this.connectionManager.getConnection(id)) connectionsToDelete.push(id);
+      else if (this.nodeGroupManager.getGroup(id)) groupsToDelete.push(id);
     });
-    if (connectionsToDelete.length > 0)
-      this.connectionManager.deleteConnections(connectionsToDelete);
+
+    if (connectionsToDelete.length > 0) this.connectionManager.deleteConnections(connectionsToDelete);
     if (nodesToDelete.length > 0) this.nodeManager.deleteNodes(nodesToDelete);
-    if (stickiesToDelete.length > 0)
-      this.stickyNoteManager.deleteNotes(stickiesToDelete);
+    if (stickiesToDelete.length > 0) this.stickyNoteManager.deleteNotes(stickiesToDelete);
+    if (groupsToDelete.length > 0) {
+        groupsToDelete.forEach(id => this.nodeGroupManager.deleteGroup(id));
+    }
+    
     this.selectionManager.clearSelection();
     this.events.emit("itemsDeleted", selectedIds);
     this.canvasEngine.requestRender();
@@ -698,7 +657,8 @@ export class NodeEditorController {
   private handleSelectAll = (): void => {
     const allNodeIds = this.nodeManager.getNodes().map((n) => n.id);
     const allStickyIds = this.stickyNoteManager.getNotes().map((s) => s.id);
-    this.selectionManager.selectItems([...allNodeIds, ...allStickyIds], false);
+    const allGroupIds = this.nodeGroupManager.getGroups().map((g) => g.id);
+    this.selectionManager.selectItems([...allNodeIds, ...allStickyIds, ...allGroupIds], false);
     this.canvasEngine.requestRender();
   };
 
@@ -738,7 +698,9 @@ export class NodeEditorController {
       !this.selectionManager.isSelected(iElem.item.id) &&
       (iElem.type === "node" ||
         iElem.type === "stickyNote" ||
-        iElem.type === "connection")
+        iElem.type === "connection" ||
+        iElem.type === "group" // NEW
+        )
     ) {
       this.selectionManager.selectItem(iElem.item.id, false);
     } else if (
@@ -763,6 +725,38 @@ export class NodeEditorController {
     const items: ContextMenuItemAction[] = [];
     const { targetType, targetId } = context;
     const selCount = this.selectionManager.getSelectionCount();
+
+    if (selCount > 0) {
+      const selectedNodes = this.selectionManager.getSelectedItems()
+          .map(id => this.nodeManager.getNode(id))
+          .filter((n): n is Node => !!n);
+          
+      if (selectedNodes.length > 0) {
+          items.push({
+              id: 'group-selection',
+              label: `Group ${selectedNodes.length} Nodes`,
+              iconName: 'ph-selection-plus',
+              action: () => this.nodeGroupManager.createGroup(selectedNodes),
+              separatorBefore: true
+          });
+      }
+    }
+    
+    // NEW: Actions for when a group is right-clicked
+    if (targetType === 'group' && targetId) {
+        const group = this.nodeGroupManager.getGroup(targetId);
+        if (group) {
+            items.push({
+                id: 'config-group', label: `Configure Group '${group.title}'`, iconName: 'ph-paint-brush',
+                action: () => this.configPanel?.show(group, "group"),
+            });
+            items.push({
+                id: 'ungroup', label: 'Ungroup', iconName: 'ph-selection-slash',
+                action: () => this.nodeGroupManager.deleteGroup(targetId, false)
+            });
+        }
+    }
+
     if (targetType === "node" && targetId) {
       const node = this.nodeManager.getNode(targetId);
       if (node) {
@@ -836,9 +830,7 @@ export class NodeEditorController {
         });
     }
     if (selCount > 0) {
-      let deleteLabel = `Delete ${
-        selCount > 1 ? `${selCount} Items` : "Selected"
-      }`;
+      let deleteLabel = `Delete ${selCount > 1 ? `${selCount} Items` : "Selected"}`;
       if (
         selCount === 1 &&
         targetId &&
@@ -908,8 +900,10 @@ export class NodeEditorController {
   };
 
   public async saveGraphToLocalStorage(): Promise<void> {
-    await this.platformDataService.saveGraph(this.getCurrentGraphState());
+    const stateToSave = this.getCurrentGraphState();
+    await this.platformDataService.saveGraph(stateToSave);
   }
+
   public async loadGraphFromLocalStorage(): Promise<boolean> {
     const graphState = await this.platformDataService.loadGraph();
     if (graphState) {
@@ -918,15 +912,18 @@ export class NodeEditorController {
     }
     return false;
   }
+
   public getLocalStorageKey(): string {
     return LOCAL_STORAGE_GRAPH_KEY;
   }
+  
   public async clearGraph(): Promise<void> {
     this.loadGraphState(
       {
         nodes: [],
         connections: [],
         stickyNotes: [],
+        nodeGroups: [], // NEW
         viewState: this.viewStore.getState(),
       },
       true
@@ -935,33 +932,34 @@ export class NodeEditorController {
   }
 
   private getCurrentGraphState(): GraphState {
-    return {
-      nodes: this.nodeManager
-        .getNodes()
-        .map((n) => JSON.parse(JSON.stringify(n))),
-      connections: this.connectionManager
-        .getConnections()
-        .map((c) => JSON.parse(JSON.stringify(c))),
-      stickyNotes: this.stickyNoteManager
-        .getNotes()
-        .map((s) => JSON.parse(JSON.stringify(s))),
-      viewState: JSON.parse(JSON.stringify(this.viewStore.getState())),
+    const pureState = {
+      nodes: this.nodeManager.getNodes(),
+      connections: this.connectionManager.getConnections(),
+      stickyNotes: this.stickyNoteManager.getNotes(),
+      nodeGroups: this.nodeGroupManager.getGroups(),
+      viewState: this.viewStore.getState(),
     };
+    return JSON.parse(JSON.stringify(pureState));
   }
 
-  private loadGraphState(
-    graphState: GraphState,
-    pushToHistory: boolean = true
-  ): void {
+  private loadGraphState(graphState: GraphState, pushToHistory: boolean = true): void {
     this.selectionManager.clearSelection();
     this.nodeManager.loadNodes(graphState.nodes || []);
     this.connectionManager.loadConnections(graphState.connections || []);
     this.stickyNoteManager.loadNotes(graphState.stickyNotes || []);
-    if (graphState.viewState) this.viewStore.setState(graphState.viewState);
-    else this.zoomToFitContent();
-    if (pushToHistory && !this.historyManager.isRestoringState())
-      this.historyManager.push(this.getCurrentGraphState());
-    this.toolbar?.refreshButtonStates();
+    this.nodeGroupManager.loadGroups(graphState.nodeGroups || []);
+    
+    if (graphState.viewState) {
+        this.viewStore.setState(graphState.viewState);
+    } else {
+        this.zoomToFitContent();
+    }
+    
+    if (pushToHistory && !this.historyManager.isRestoringState()) {
+        this.historyManager.push(this.getCurrentGraphState());
+    }
+    
+    this.toolbar?.refresh();
     this.canvasEngine.requestRender();
     this.events.emit("graphLoaded", graphState);
   }

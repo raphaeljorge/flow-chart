@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { NodeEditorController, Node, Connection, StickyNote, ConfigurableItem, ConfigurableItemType, ConfigParameter } from '../editor/app/NodeEditorController';
+import React, { useState, useEffect, useCallback } from 'react';
+import { NodeEditorController } from '../editor/app/NodeEditorController';
+import { Node, Connection, StickyNote, ConfigurableItem, ConfigurableItemType, ConfigParameter, NodeGroup } from '../editor/core/types';
 import '../editor/components/ConfigPanel/ConfigPanel.css';
 
 interface ConfigPanelProps {
@@ -12,79 +13,104 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
   const [formData, setFormData] = useState<any>({});
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
-  useEffect(() => {
+  const updateSelection = useCallback((selectedIds: string[]) => {
     if (!controller) return;
 
-    const handleSelectionChange = (selectedIds: string[]) => {
-      if (selectedIds.length === 1) {
-        const id = selectedIds[0];
-        const node = controller.nodeManager.getNode(id);
-        if (node) {
-          setSelectedItem(node);
-          setItemType('node');
-          setFormData({ ...node.data, color: node.color });
-          setActiveTab(node.config?.tabs?.[0]?.id || 'general');
-          return;
+    if (selectedIds.length === 1) {
+      const id = selectedIds[0];
+      let item: ConfigurableItem | undefined;
+      let type: ConfigurableItemType | null = null;
+      
+      item = controller.nodeManager.getNode(id);
+      if (item) { type = 'node'; }
+      else {
+        item = controller.connectionManager.getConnection(id);
+        if (item) { type = 'connection'; }
+        else {
+          item = controller.stickyNoteManager.getNote(id);
+          if (item) { type = 'stickyNote'; }
+          else {
+            item = controller.nodeGroupManager.getGroup(id);
+            if (item) { type = 'group'; }
+          }
         }
-        
-        const conn = controller.connectionManager.getConnection(id);
-        if (conn) {
-          setSelectedItem(conn);
-          setItemType('connection');
-          setFormData(conn.data || {});
-          setActiveTab('general');
-          return;
-        }
+      }
 
-        const note = controller.stickyNoteManager.getNote(id);
-        if (note) {
-          setSelectedItem(note);
-          setItemType('stickyNote');
-          setFormData(note.style || {});
-          setActiveTab('style');
-          return;
+      if (item && type) {
+        setSelectedItem(item);
+        setItemType(type);
+        if (type === 'node') {
+            const node = item as Node;
+            setFormData({ ...node.data, color: node.color || '#666666' });
+            const firstTab = node.config?.tabs?.[0]?.id || 'general';
+            setActiveTab(firstTab);
+        } else if (type === 'group') {
+            const group = item as NodeGroup;
+            setFormData({ ...group.style, title: group.title });
+            setActiveTab('style');
+        } else if (type === 'connection') {
+            const conn = item as Connection;
+            setFormData(conn.data || {});
+            setActiveTab('general');
+        } else if (type === 'stickyNote') {
+            const note = item as StickyNote;
+            setFormData(note.style || {});
+            setActiveTab('style');
         }
       } else {
         setSelectedItem(null);
         setItemType(null);
+      }
+    } else {
+      setSelectedItem(null);
+      setItemType(null);
+    }
+  }, [controller]);
+
+  useEffect(() => {
+    if (!controller) return;
+    controller.selectionManager.on('selectionChanged', updateSelection);
+    
+    // Fallback if the React component misses the first selection event
+    if(controller.selectionManager.getSelectionCount() === 1) {
+        updateSelection(controller.selectionManager.getSelectedItems());
+    }
+
+    return () => {
+      controller.selectionManager.off('selectionChanged', updateSelection);
+    };
+  }, [controller, updateSelection]);
+
+  useEffect(() => {
+    if (!selectedItem) {
         setFormData({});
         setActiveTab(null);
-      }
-    };
-
-    controller.selectionManager.on('selectionChanged', handleSelectionChange);
-    return () => {
-      controller.selectionManager.off('selectionChanged', handleSelectionChange);
-    };
-  }, [controller]);
+    }
+  }, [selectedItem]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
     const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
-
-    // Atualiza o estado do formulário para todos os inputs
-    setFormData(prev => ({ ...prev, [name]: finalValue }));
-
-    // Se o input for o de cor, também atualiza o nó diretamente no controller
-    // Isso garante a resposta visual imediata, agora que o controller redesenha o canvas.
-    if (name === 'color' && controller && selectedItem && itemType === 'node') {
-      controller.nodeManager.updateNode(selectedItem.id, { color: finalValue });
-    }
+    setFormData((prev: any) => ({ ...prev, [name]: finalValue }));
   };
 
-  // Effect to auto-save changes
   useEffect(() => {
-    if (!controller || !selectedItem || !itemType) return;
-
-    // For nodes, handle only the data object (color is handled separately in handleInputChange)
+    if (!controller || !selectedItem || !itemType || Object.keys(formData).length === 0) return;
+  
     if (itemType === 'node') {
-      const { color, ...nodeData } = formData;
-      controller.applyItemConfig(selectedItem.id, itemType, nodeData);
-    } else {
-      controller.applyItemConfig(selectedItem.id, itemType, formData);
+        const { color, ...nodeData } = formData;
+        controller.nodeManager.updateNode(selectedItem.id, { data: nodeData, color: color });
+    } else if (itemType === 'group') {
+        const { title, ...styleData } = formData;
+        controller.nodeGroupManager.updateGroup(selectedItem.id, { title, style: styleData });
+    } else if (itemType === 'stickyNote') {
+      controller.stickyNoteManager.updateNote(selectedItem.id, { style: formData });
+    } else if (itemType === 'connection') {
+      controller.connectionManager.updateConnectionData(selectedItem.id, formData);
     }
   }, [formData, controller, selectedItem, itemType]);
+  
 
   const renderInput = (param: ConfigParameter) => {
     const value = formData[param.id] ?? param.defaultValue ?? '';
@@ -133,7 +159,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             required={param.required}
           >
             {param.options?.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={String(opt.value)} value={String(opt.value)}>{opt.label}</option>
             ))}
           </select>
         );
@@ -167,7 +193,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
               onChange={handleInputChange}
               name={param.id}
               className="config-input-hex"
-              pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
+              pattern="^#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
               title="Hex color code"
             />
           </div>
@@ -179,31 +205,53 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
   };
 
   if (!selectedItem || !itemType) {
-    return <div className="config-panel-wrapper">Select an item to configure</div>;
+    return <div className="config-panel-wrapper" />;
   }
 
-  const config = selectedItem.config;
-  const title = (selectedItem as Node).title || (selectedItem as StickyNote).content || 'Item';
-  const icon = (selectedItem as Node).icon || 'ph-gear';
+  let config: any;
+  let title: string;
+  let icon: string;
+  let subTitle: string = itemType;
 
-  // Get all available tabs, including the style tab for nodes
+  if (itemType === 'group') {
+    const group = selectedItem as NodeGroup;
+    title = group.title;
+    icon = 'ph-selection-background';
+    subTitle = 'Group';
+    config = {
+        tabs: [{ id: 'style', label: 'Style', icon: 'ph-palette' }],
+        parameters: [
+            { id: 'title', tabId: 'style', type: 'text', label: 'Group Title', defaultValue: group.title },
+            { id: 'backgroundColor', tabId: 'style', type: 'color', label: 'Background Color', defaultValue: group.style.backgroundColor },
+            { id: 'borderColor', tabId: 'style', type: 'color', label: 'Border Color', defaultValue: group.style.borderColor },
+            { id: 'titleColor', tabId: 'style', type: 'color', label: 'Title Color', defaultValue: group.style.titleColor },
+        ]
+    };
+  } else if (itemType === 'node') {
+    const node = selectedItem as Node;
+    config = { ...node.config };
+    config.parameters = [...(config.parameters || [])];
+    config.tabs = [...(config.tabs || [])];
+    if(!config.tabs.find((t:any) => t.id === 'appearance')) {
+      config.tabs.push({ id: 'appearance', label: 'Appearance', icon: 'ph-palette' });
+    }
+    if(!config.parameters.find((p:any) => p.id === 'color')) {
+        config.parameters.push({
+            id: 'color', tabId: 'appearance', type: 'color', label: 'Node Color', 
+            description: 'Custom color for the node highlight.', defaultValue: node.color || '#666666'
+        });
+    }
+    title = node.title;
+    icon = node.icon || 'ph-gear';
+    subTitle = node.type;
+  } else {
+    config = (selectedItem as any).config || {};
+    title = (selectedItem as any).title || (selectedItem as StickyNote).content || 'Item';
+    icon = (selectedItem as Node).icon || 'ph-gear';
+  }
+
+  const allParameters = config?.parameters || [];
   const allTabs = config?.tabs || [];
-  if (itemType === 'node' && !allTabs.find(t => t.id === 'style')) {
-    allTabs.push({ id: 'style', label: 'Style', icon: 'ph-palette' });
-  }
-
-  // Get all parameters, including style parameters for nodes
-  const allParameters = [...(config?.parameters || [])];
-  if (itemType === 'node' && activeTab === 'style') {
-    allParameters.push({
-      id: 'color',
-      tabId: 'style',
-      type: 'color',
-      label: 'Node Color',
-      description: 'Custom color for node border, ports, and icon.',
-      defaultValue: (selectedItem as Node).color || '#666666'
-    });
-  }
 
   return (
     <div className="config-panel-wrapper visible">
@@ -214,13 +262,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
           </div>
           <div className="config-panel-title">
             <h2>{title}</h2>
-            <p>{itemType}</p>
+            <p>{subTitle}</p>
           </div>
         </div>
 
         {allTabs.length > 0 && (
           <div className="config-panel-tabs">
-            {allTabs.map(tab => (
+            {allTabs.map((tab: any) => (
               <div
                 key={tab.id}
                 className={`config-tab ${tab.id === activeTab ? 'active' : ''}`}
@@ -235,8 +283,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
 
         <div className="config-panel-content">
           {allParameters
-            .filter(param => !activeTab || param.tabId === activeTab)
-            .map(param => (
+            .filter((param: any) => !activeTab || !param.tabId || param.tabId === activeTab)
+            .map((param: any) => (
               <div key={param.id} className="form-group">
                 <label htmlFor={param.id}>{param.label}</label>
                 {renderInput(param)}
@@ -246,15 +294,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
               </div>
             ))}
         </div>
-
-        {itemType === 'node' && (
-          <div className="config-panel-actions">
-            <button className="btn btn-secondary">
-              <i className="ph ph-play"></i>
-              Test
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

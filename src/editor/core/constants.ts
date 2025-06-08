@@ -1,3 +1,4 @@
+// src/editor/core/constants.ts
 // Canvas & Rendering
 export const DEFAULT_GRID_SIZE = 20;
 export const DEFAULT_SCALE = 1;
@@ -33,9 +34,13 @@ export const STICKY_NOTE_DEFAULT_BG_COLOR = "#2a2a2a";
 export const STICKY_NOTE_DEFAULT_TEXT_COLOR = "#ffffff";
 export const STICKY_NOTE_DEFAULT_FONT_SIZE = 14;
 
+// Groups (NEW)
+export const GROUP_HEADER_HEIGHT = 30;
+export const GROUP_PADDING = 20;
+
 // Interaction
 export const RESIZE_HANDLE_SIZE = 8; // Visual size of resize handles
-export const RESIZE_BORDER_THRESHOLD = 5; // <-- ADICIONE ESTA LINHA (Sensibilidade da borda em pixels)
+export const RESIZE_BORDER_THRESHOLD = 5; 
 export const DOUBLE_CLICK_INTERVAL = 300; // ms for detecting double click
 
 // UI Elements
@@ -55,6 +60,7 @@ export const EVENT_SELECTION_CHANGED = 'selectionChanged';
 export const EVENT_NODES_UPDATED = 'nodesUpdated';
 export const EVENT_CONNECTIONS_UPDATED = 'connectionsUpdated';
 export const EVENT_NOTES_UPDATED = 'notesUpdated';
+export const EVENT_GROUPS_UPDATED = 'groupsUpdated'; // NEW
 export const EVENT_HISTORY_CHANGED = 'historyChanged';
 export const EVENT_CLIPBOARD_CHANGED = 'clipboardChanged';
 export const EVENT_CONFIG_APPLIED = 'configApplied';
@@ -77,8 +83,7 @@ export const EVENT_CANVAS_AFTER_RENDER = 'afterrender';
 export const DEFAULT_HISTORY_MAX_SIZE = 50;
 
 // Fallback Node Definitions (if platform service fails)
-// This should ideally be minimal or empty, relying on PlatformDataService
-import { NodeDefinition } from './types'; // Assuming types.ts is in the same directory
+import { NodeDefinition } from './types';
 export const ALL_NODE_DEFINITIONS: NodeDefinition[] = [
     // Minimal fallback, or empty array if you strictly want to rely on service
   {

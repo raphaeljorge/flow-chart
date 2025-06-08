@@ -23,7 +23,7 @@ export class ClipboardManager {
     if (itemsToCopy.length > 1) {
         let minX = Infinity, minY = Infinity;
         itemsToCopy.forEach(item => {
-            if (item.data.position) { // Ensure position exists
+            if (item.data.position) {
                 minX = Math.min(minX, item.data.position.x);
                 minY = Math.min(minY, item.data.position.y);
             }
@@ -44,7 +44,7 @@ export class ClipboardManager {
       }
 
       return {
-        id: nanoid(), // This ID is for the clipboard item itself, a new one will be made on paste
+        id: nanoid(),
         originalId: item.originalId,
         type: item.type,
         data: clonedData,
@@ -60,26 +60,24 @@ export class ClipboardManager {
     }
 
     return this.clipboardItems.map(clipboardItem => {
-        const clonedData = JSON.parse(JSON.stringify(clipboardItem.data)); // Fresh clone for this paste operation
-        clonedData.id = nanoid(); // Generate a NEW unique ID for the pasted item
+        const clonedData = JSON.parse(JSON.stringify(clipboardItem.data));
+        clonedData.id = nanoid(); 
 
         if (this.clipboardItems.length === 1 || !clipboardItem.relativeOffset) {
-            // Single item, or multi-item without a valid relative offset (fallback)
             clonedData.position = {
                 x: pasteCenterPoint.x + offset.x,
                 y: pasteCenterPoint.y + offset.y,
             };
         } else {
-            // Multiple items, maintain relative spacing using pasteCenterPoint as the new anchor
             clonedData.position = {
                 x: pasteCenterPoint.x + clipboardItem.relativeOffset.x + offset.x,
                 y: pasteCenterPoint.y + clipboardItem.relativeOffset.y + offset.y,
             };
         }
         return {
-            ...clipboardItem, // Spread the original clipboard item (like type, originalId)
-            id: clonedData.id, // Override with the new unique ID for the pasted item
-            data: clonedData, // The newly positioned and ID'd data
+            ...clipboardItem,
+            id: clonedData.id,
+            data: clonedData,
         };
     });
   }

@@ -1,4 +1,3 @@
-// src/editor/canvas/RenderService.ts
 import { CanvasEngine } from './CanvasEngine';
 import { NodeManager } from '../state/NodeManager';
 import { StickyNoteManager } from '../state/StickyNoteManager';
@@ -6,37 +5,34 @@ import { SelectionManager } from '../state/SelectionManager';
 import { InteractionManager } from '../interaction/InteractionManager';
 import { ConnectionManager } from '../state/ConnectionManager';
 import { ViewStore } from '../state/ViewStore';
-import { Node, StickyNote, ViewState, NodePort, Connection, Point } from '../core/types';
+import { Node, StickyNote, ViewState, NodePort, Connection, NodeGroup } from '../core/types';
 import {
-  NODE_HEADER_HEIGHT, NODE_PORT_VERTICAL_SPACING, NODE_PORT_SIZE,
-  RECONNECT_HANDLE_RADIUS, RESIZE_HANDLE_SIZE,
-  EVENT_CANVAS_BEFORE_RENDER, EVENT_CANVAS_POINTER_MOVE, EVENT_CANVAS_POINTER_LEAVE,
+  NODE_HEADER_HEIGHT,
+  NODE_PORT_SIZE,
+  EVENT_CANVAS_BEFORE_RENDER
 } from '../core/constants';
+import { NodeGroupManager, GROUP_HEADER_HEIGHT } from '../state/NodeGroupManager';
 
 export class RenderService {
   private ctx: CanvasRenderingContext2D | null = null;
   private currentViewState: ViewState | null = null;
   private hoveredCompatiblePortId: string | null = null;
   private hoveredPortIdIdle: string | null = null;
-
-  // Theme colors will be fetched from CSS variables
   private themeColors: Record<string, string> = {};
-
 
   constructor(
     private canvasEngine: CanvasEngine,
     private nodeManager: NodeManager,
     private connectionManager: ConnectionManager,
     private stickyNoteManager: StickyNoteManager,
+    private nodeGroupManager: NodeGroupManager, // Correctly added
     private selectionManager: SelectionManager,
-    private interactionManager: InteractionManager, // Consider passing only necessary parts or using events
+    private interactionManager: InteractionManager,
     private viewStore: ViewStore,
   ) {
     this.canvasEngine.on(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
-    // Listen to InteractionManager events for hover states
     this.interactionManager.on('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.on('portHoverChanged', this.handlePortHoverIdleChanged);
-
     this.loadThemeColors();
   }
 
@@ -84,12 +80,11 @@ export class RenderService {
     this.ctx = ctx;
     this.currentViewState = viewState; // Store current view state for rendering methods
 
+    this.renderGroups();
     this.renderConnections();
     this.renderStickyNotes();
     this.renderNodes();
-    // Selection highlights are drawn per item type to ensure correct layering
-    // this.renderSelectionHighlights(); // Combined into individual render methods
-    this.renderPorts(); // Ports are part of nodes but drawn on top
+    this.renderPorts(); 
     this.renderPendingOrReconnectingConnection();
     this.renderResizeHandles();
     this.renderBoxSelect();
@@ -97,6 +92,39 @@ export class RenderService {
     this.ctx = null;
     this.currentViewState = null;
   };
+
+  private renderGroups(): void {
+    if (!this.ctx || !this.currentViewState) return;
+    const groups = this.nodeGroupManager.getGroups();
+    groups.forEach(group => this.drawGroup(this.ctx!, group, this.currentViewState!));
+  }
+
+  private drawGroup(ctx: CanvasRenderingContext2D, group: NodeGroup, viewState: ViewState): void {
+    const { position: { x, y }, width, height, title, style } = group;
+    const isSelected = this.selectionManager.isSelected(group.id);
+    const cornerRadius = 12;
+    const headerHeight = GROUP_HEADER_HEIGHT;
+
+    ctx.fillStyle = style.backgroundColor || 'rgba(148, 163, 184, 0.1)';
+    ctx.strokeStyle = style.borderColor || '#94a3b8';
+    ctx.lineWidth = (isSelected ? 2.5 : 1) / viewState.scale;
+    
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, cornerRadius);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x, y + headerHeight);
+    ctx.lineTo(x + width, y + headerHeight);
+    ctx.stroke();
+
+    ctx.fillStyle = style.titleColor || '#e2e8f0';
+    ctx.font = `bold 14px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, x + 15, y + headerHeight / 2);
+  }
 
   private renderNodes(): void {
     if (!this.ctx || !this.currentViewState) return;
