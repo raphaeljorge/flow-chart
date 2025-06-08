@@ -46,6 +46,7 @@ import { ShortcutManager } from "../interaction/ShortcutManager";
 import { DndController } from "../interaction/DndController";
 import { EditorIconService } from "../services/EditorIconService";
 import { PlatformDataService } from "../services/PlatformDataService";
+import { AutoLayoutService } from '../services/AutoLayoutService';
 import { NodePalette } from "../components/NodePalette/NodePalette";
 import { ConfigPanel } from "../components/ConfigPanel/ConfigPanel";
 import { Toolbar } from "../components/Toolbar/Toolbar";
@@ -80,6 +81,7 @@ export class NodeEditorController {
 
   public iconService: EditorIconService;
   public platformDataService: PlatformDataService;
+  private autoLayoutService: AutoLayoutService;
 
   private nodePalette: NodePalette | null = null;
   public configPanel: ConfigPanel | null = null;
@@ -120,6 +122,7 @@ export class NodeEditorController {
     this.iconService = new EditorIconService();
     this.platformDataService = new PlatformDataService();
     this.viewStore = new ViewStore({});
+    this.autoLayoutService = new AutoLayoutService();
 
     this.nodeManager = new NodeManager();
     this.connectionManager = new ConnectionManager(this.nodeManager);
@@ -261,6 +264,33 @@ export class NodeEditorController {
     }
   }
 
+  public autoLayout(): void {
+    const nodes = this.nodeManager.getNodes();
+    const connections = this.connectionManager.getConnections();
+
+    if (nodes.length === 0) {
+      return;
+    }
+
+    // Calcula as novas posições
+    const newPositions = this.autoLayoutService.layoutGraph(nodes, connections);
+
+    // Atualiza as posições dos nós
+    newPositions.forEach((pos, nodeId) => {
+      this.nodeManager.moveNode(nodeId, pos);
+    });
+
+    // Cria um ponto no histórico para que a ação possa ser desfeita
+    this.historyManager.push(this.getCurrentGraphState());
+    
+    // Centraliza a visão no conteúdo recém-organizado
+    this.zoomToFitContent();
+
+    // Solicita uma nova renderização do canvas
+    this.canvasEngine.requestRender();
+    this.events.emit('layoutApplied');
+  }
+
   private initializeToolbarButtons(): void {
     if (!this.toolbar) return;
 
@@ -365,6 +395,16 @@ export class NodeEditorController {
         id: 'zoom-display',
         title: 'Current Zoom Level',
         text: () => `${Math.round(this.viewStore.getState().scale * 100)}%`
+    });
+
+    this.toolbar.addSeparator();
+
+    // Botão de Auto-Layout
+    this.toolbar.addButton({
+      id: 'auto-layout',
+      title: 'Auto-Layout (L)',
+      iconName: 'ph-graph', // Um ícone adequado
+      action: () => this.autoLayout(),
     });
 
     // O método refresh() irá renderizar e atualizar todos os itens na ordem em que foram adicionados.
@@ -537,6 +577,7 @@ export class NodeEditorController {
     this.shortcutManager.on("zoomToFit", () => this.zoomToFitContent());
     this.shortcutManager.on("zoomToSelection", () => this.zoomToSelection());
     this.shortcutManager.on("resetView", () => this.viewStore.resetView());
+    this.shortcutManager.on("autoLayout", this.autoLayout.bind(this));
   }
 
   private handleCopy = (): void => {

@@ -46,6 +46,8 @@ export class ShortcutManager {
     this.registerShortcut({ key: 'F', actionId: 'zoomToFit', preventDefault: true });
     this.registerShortcut({ key: 'R', actionId: 'resetView', preventDefault: false }); // Allow 'r' for text input if not focused on canvas
     this.registerShortcut({ key: 'F', shiftKey: true, actionId: 'zoomToSelection', preventDefault: true });
+    
+    this.registerShortcut({ key: 'L', actionId: 'autoLayout', preventDefault: true });
 
     this.registerShortcut({ key: 'Escape', actionId: 'escape', preventDefault: false }); // General escape action
   }

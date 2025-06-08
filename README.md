@@ -203,11 +203,9 @@ node-based-software-builder/
 
 ### **Visual Flow Features**
 
-- ❌ **Node grouping/containers** (no way to group nodes visually)
+- ✅ **Node grouping/containers** (no way to group nodes visually)
 
-- ❌ **Node alignment tools** (align left, center, distribute equally)
-
-- ❌ **Node auto-layout** algorithms (automatic arrangement)
+- ✅ **Node auto-layout** algorithms (automatic arrangement)
 
 - ❌ **Connection routing improvements** (currently straight lines, no curved/smart routing)
 
