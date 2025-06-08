@@ -1,5 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
-import { ViewState, Point, CanvasBackgroundPattern } from '../core/types';
+import { ViewState, Point, CanvasBackgroundPattern, EditorPreferences, ConnectionRoutingMode } from '../core/types';
 import { EVENT_VIEW_CHANGED, DEFAULT_SCALE, DEFAULT_GRID_SIZE } from '../core/constants';
 
 export class ViewStore {
@@ -7,14 +7,38 @@ export class ViewStore {
   private events: EventEmitter;
 
   constructor(initialState?: Partial<ViewState>) {
+    const defaultPreferences: EditorPreferences = {
+      connectionRouting: ConnectionRoutingMode.BEZIER,
+      grid: {
+        pattern: 'dots',
+        snapToGrid: false,
+        adaptiveGrid: true,
+      },
+      connectionAppearance: {
+        thicknessMode: 'uniform',
+        showLabels: true,
+        showDirectionArrows: true,
+        animateFlow: false,
+        colorMode: 'uniform',
+      },
+      performance: {
+        animations: 'essential',
+        shadowEffects: true,
+        maxVisibleNodes: 200,
+      },
+      ...(initialState?.preferences || {}),
+    };
+
     this.state = {
       scale: initialState?.scale ?? DEFAULT_SCALE,
       offset: initialState?.offset ?? { x: 0, y: 0 },
-      showGrid: initialState?.showGrid ?? true,
-      snapToGrid: initialState?.snapToGrid ?? false,
       gridSize: initialState?.gridSize ?? DEFAULT_GRID_SIZE,
-      backgroundPattern: initialState?.backgroundPattern ?? 'dots',
+      preferences: defaultPreferences,
+      showGrid: defaultPreferences.grid.pattern !== 'none',
+      snapToGrid: defaultPreferences.grid.snapToGrid,
+      backgroundPattern: defaultPreferences.grid.pattern,
     };
+    
     this.events = new EventEmitter();
   }
 
@@ -87,6 +111,26 @@ export class ViewStore {
     }
     return this;
   }
+
+  public updatePreferences(newPrefs: Partial<EditorPreferences>): void {
+    const currentPrefs = this.state.preferences;
+
+    // Deep merge for nested preference objects
+    const updatedPreferences: EditorPreferences = {
+        connectionRouting: newPrefs.connectionRouting ?? currentPrefs.connectionRouting,
+        grid: { ...currentPrefs.grid, ...(newPrefs.grid || {}) },
+        connectionAppearance: { ...currentPrefs.connectionAppearance, ...(newPrefs.connectionAppearance || {}) },
+        performance: { ...currentPrefs.performance, ...(newPrefs.performance || {}) },
+    };
+
+    const derivedState: Partial<ViewState> = {
+        preferences: updatedPreferences,
+        showGrid: updatedPreferences.grid.pattern !== 'none',
+        backgroundPattern: updatedPreferences.grid.pattern,
+        snapToGrid: updatedPreferences.grid.snapToGrid,
+    };
+    this.setState(derivedState);
+}
 
   public destroy(): void {
     this.events.removeAllListeners();

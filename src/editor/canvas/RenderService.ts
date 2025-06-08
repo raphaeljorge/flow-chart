@@ -5,7 +5,10 @@ import { SelectionManager } from '../state/SelectionManager';
 import { InteractionManager } from '../interaction/InteractionManager';
 import { ConnectionManager } from '../state/ConnectionManager';
 import { ViewStore } from '../state/ViewStore';
-import { Node, StickyNote, ViewState, NodePort, Connection, NodeGroup } from '../core/types';
+import { 
+  Node, StickyNote, ViewState, NodePort, Connection, NodeGroup, 
+  Point, ConnectionRoutingMode 
+} from '../core/types';
 import {
   NODE_HEADER_HEIGHT,
   NODE_PORT_SIZE,
@@ -20,25 +23,52 @@ export class RenderService {
   private hoveredCompatiblePortId: string | null = null;
   private hoveredPortIdIdle: string | null = null;
   private themeColors: Record<string, string> = {};
+  private animationFrameId: number | null = null;
 
   constructor(
     private canvasEngine: CanvasEngine,
     private nodeManager: NodeManager,
     private connectionManager: ConnectionManager,
     private stickyNoteManager: StickyNoteManager,
-    private nodeGroupManager: NodeGroupManager, // Correctly added
+    private nodeGroupManager: NodeGroupManager,
     private selectionManager: SelectionManager,
     private interactionManager: InteractionManager,
-    viewStore: ViewStore, // CORREÇÃO: Removido 'private'
+    viewStore: ViewStore,
   ) {
     this.canvasEngine.on(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
     this.interactionManager.on('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.on('portHoverChanged', this.handlePortHoverIdleChanged);
     this.loadThemeColors();
     
-    // O ViewStore é necessário para obter o estado durante a renderização, mas não precisa ser uma propriedade de classe se o estado for passado para cada chamada de renderização.
-    // Neste caso, o estado da view é passado para handleBeforeRender, então não precisamos de this.viewStore.
-    viewStore.on(EVENT_VIEW_CHANGED, () => this.canvasEngine.requestRender());
+    viewStore.on(EVENT_VIEW_CHANGED, this.handleViewChange);
+  }
+
+  private handleViewChange = (newState: ViewState, oldState?: ViewState) => {
+    const needsAnimation = newState.preferences.connectionAppearance.animateFlow;
+    const wasAnimating = oldState?.preferences.connectionAppearance.animateFlow ?? false;
+
+    if (needsAnimation && !wasAnimating) {
+        this.startAnimationLoop();
+    } else if (!needsAnimation && wasAnimating) {
+        this.stopAnimationLoop();
+    }
+    this.canvasEngine.requestRender();
+  }
+
+  private startAnimationLoop = () => {
+    if (this.animationFrameId) return; // Already running
+    const animate = () => {
+        this.canvasEngine.requestRender();
+        this.animationFrameId = requestAnimationFrame(animate);
+    };
+    this.animationFrameId = requestAnimationFrame(animate);
+  }
+
+  private stopAnimationLoop = () => {
+      if (this.animationFrameId) {
+          cancelAnimationFrame(this.animationFrameId);
+          this.animationFrameId = null;
+      }
   }
 
   private loadThemeColors(): void {
@@ -411,70 +441,92 @@ export class RenderService {
 
     connections.forEach(conn => {
       if (pendingReconInfo && pendingReconInfo.originalConnection.id === conn.id) {
-        this.drawBezierConnection(conn, this.currentViewState!, this.ctx!, true); // Ghosted
+        this.drawConnection(conn, this.currentViewState!, this.ctx!, true); // Ghosted
         return;
       }
       const isSelected = this.selectionManager.isSelected(conn.id);
-      this.drawBezierConnection(conn, this.currentViewState!, this.ctx!, false, isSelected);
+      this.drawConnection(conn, this.currentViewState!, this.ctx!, false, isSelected);
     });
   }
 
-  private drawBezierConnection(conn: Connection, viewState: ViewState, ctx: CanvasRenderingContext2D, isGhosted: boolean = false, isSelected: boolean = false): void {
+  private drawConnection(conn: Connection, viewState: ViewState, ctx: CanvasRenderingContext2D, isGhosted: boolean = false, isSelected: boolean = false): void {
     const sourceNode = this.nodeManager.getNode(conn.sourceNodeId);
     const targetNode = this.nodeManager.getNode(conn.targetNodeId);
     const sourcePort = this.nodeManager.getPort(conn.sourcePortId);
     const targetPort = this.nodeManager.getPort(conn.targetPortId);
 
-    if (!sourceNode || !targetNode || !sourcePort || !targetPort) return;
+    if (!sourceNode || !targetNode || !sourcePort || !targetPort || sourcePort.isHidden || targetPort.isHidden) return;
 
     const p0 = this.interactionManager.getPortAbsolutePosition(sourceNode, sourcePort, viewState);
     const p3 = this.interactionManager.getPortAbsolutePosition(targetNode, targetPort, viewState);
 
-    if (!isGhosted && (sourcePort.isHidden || targetPort.isHidden)) return;
-
-    if (isGhosted) {
-      ctx.strokeStyle = this.themeColors.connectionGhosted;
-      ctx.lineWidth = 1 / viewState.scale;
-      ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
-    } else {
-      // A COR da linha é sempre a da conexão.
-      ctx.strokeStyle = conn.data?.color || this.themeColors.connectionDefault;
-      // A ESPESSURA aumenta se estiver selecionado.
-      ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
-      ctx.setLineDash([]);
-    }
-
     ctx.beginPath();
+    
+    // Setup line style
+    this.setupConnectionStyle(ctx, conn, viewState, isGhosted, isSelected);
+
+    // --- NEW: Routing Logic ---
+    const routingMode = viewState.preferences.connectionRouting;
+    switch (routingMode) {
+        case ConnectionRoutingMode.STRAIGHT:
+            this.drawStraightPath(ctx, p0, p3);
+            break;
+        case ConnectionRoutingMode.ORTHOGONAL:
+            this.drawOrthogonalPath(ctx, p0, p3);
+            break;
+        case ConnectionRoutingMode.BEZIER:
+        default:
+            this.drawBezierPath(ctx, p0, p3, viewState);
+            break;
+    }
+    
+    ctx.stroke();
+
+    // Reset line dash for other rendering operations
+    ctx.setLineDash([]);
+  }
+
+  private setupConnectionStyle(ctx: CanvasRenderingContext2D, conn: Connection, viewState: ViewState, isGhosted: boolean, isSelected: boolean): void {
+    if (isGhosted) {
+        ctx.strokeStyle = this.themeColors.connectionGhosted;
+        ctx.lineWidth = 1 / viewState.scale;
+        ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
+        return;
+    }
+    
+    // NEW: Animated flow
+    if (viewState.preferences.connectionAppearance.animateFlow) {
+        const lineDash = [8 / viewState.scale, 10 / viewState.scale];
+        ctx.setLineDash(lineDash);
+        const time = Date.now() / 50;
+        ctx.lineDashOffset = -time % (lineDash[0] + lineDash[1]);
+    } else {
+        ctx.setLineDash([]);
+    }
+    
+    ctx.strokeStyle = conn.data?.color || this.themeColors.connectionDefault;
+    ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
+  }
+
+  private drawStraightPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): void {
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p3.x, p3.y);
+  }
+
+  private drawBezierPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point, viewState: ViewState): void {
     ctx.moveTo(p0.x, p0.y);
     const offset = Math.min(Math.abs(p3.x - p0.x) * 0.4, 150 / viewState.scale) + 30 / viewState.scale;
     const cp1x = p0.x + offset; const cp1y = p0.y;
     const cp2x = p3.x - offset; const cp2y = p3.y;
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y);
-    ctx.stroke();
+  }
 
-    if (isGhosted) ctx.setLineDash([]);
-
-    if (conn.data?.label && !isGhosted) {
-      const midX = (p0.x + cp1x + cp2x + p3.x) / 4;
-      const midY = (p0.y + cp1y + cp2y + p3.y) / 4;
-      ctx.save();
-      ctx.translate(midX, midY);
-      const angle = Math.atan2(p3.y - p0.y, p3.x - p0.x);
-      if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
-        ctx.rotate(angle + Math.PI);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(conn.data.label, 0, 5);
-      } else {
-        ctx.rotate(angle);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(conn.data.label, 0, -5);
-      }
-      ctx.fillStyle = this.themeColors.nodeTitleText;
-      ctx.font = `10px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
-      ctx.restore();
-    }
+  private drawOrthogonalPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): void {
+      const offset = 30; // Horizontal distance to go out from the port
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p0.x + offset, p0.y);
+      ctx.lineTo(p0.x + offset, p3.y);
+      ctx.lineTo(p3.x, p3.y);
   }
 
   private renderPorts(): void {
@@ -536,6 +588,7 @@ export class RenderService {
   }
 
   public destroy(): void {
+    this.stopAnimationLoop();
     this.canvasEngine.off(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
     this.interactionManager.off('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.off('portHoverChanged', this.handlePortHoverIdleChanged);

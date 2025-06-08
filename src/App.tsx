@@ -2,14 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import FlowEditor from './components/FlowEditor';
 import NodePalette from './components/NodePalette';
 import ConfigPanel from './components/ConfigPanel';
+import PreferencesPanel from './components/PreferencesPanel';
 import { NodeEditorController } from './editor/app/NodeEditorController';
 
 const App: React.FC = () => {
   const [controller, setController] = useState<NodeEditorController | null>(null);
+  const [isPrefsVisible, setIsPrefsVisible] = useState(false);
 
   const handleEditorReady = (editorController: NodeEditorController) => {
     setController(editorController);
-    // Load saved graph if exists
     editorController.loadGraphFromLocalStorage().catch(console.error);
   };
 
@@ -28,6 +29,12 @@ const App: React.FC = () => {
         onEditorReady={handleEditorReady}
       />
       <ConfigPanel controller={controller} />
+
+      <PreferencesPanel 
+        controller={controller}
+        isVisible={isPrefsVisible}
+        onClose={() => setIsPrefsVisible(false)}
+      />
       
       <div className="button-container">
         <button
@@ -47,6 +54,13 @@ const App: React.FC = () => {
           className="btn btn-danger"
         >
           Clear Graph
+        </button>
+        <button
+          onClick={() => setIsPrefsVisible(true)}
+          className="btn btn-secondary"
+          title="Settings"
+        >
+          <i className="ph ph-gear-six"></i>
         </button>
       </div>
     </div>

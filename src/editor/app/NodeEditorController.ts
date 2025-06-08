@@ -14,6 +14,7 @@ import {
   InteractiveElementType,
   NodePort,
   ClipboardableItemType,
+  EditorPreferences
 } from "../core/types";
 import {
   EVENT_VIEW_CHANGED,
@@ -942,6 +943,10 @@ export class NodeEditorController {
     }
     this.canvasEngine.requestRender();
   };
+
+  public updatePreferences(newPrefs: Partial<EditorPreferences>): void {
+    this.viewStore.updatePreferences(newPrefs);
+  }
 
   public async saveGraphToLocalStorage(): Promise<void> {
     const stateToSave = this.getCurrentGraphState();

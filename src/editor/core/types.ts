@@ -11,7 +11,7 @@ export interface Size {
 
 export interface Rect extends Point, Size {}
 
-export type CanvasBackgroundPattern = 'solid' | 'dots' | 'lines';
+export type CanvasBackgroundPattern = 'solid' | 'dots' | 'lines' | 'none';
 
 export interface NodePort {
   id: string;
@@ -140,6 +140,7 @@ export interface ViewState {
   snapToGrid: boolean;
   gridSize: number;
   backgroundPattern: CanvasBackgroundPattern;
+  preferences: EditorPreferences;
 }
 
 export interface NodeDefinition {
@@ -233,4 +234,39 @@ export interface GraphState {
   connections: Connection[];
   nodeGroups: NodeGroup[];
   viewState: ViewState;
+}
+
+export enum ConnectionRoutingMode {
+  BEZIER = "bezier",        // Current implementation
+  ORTHOGONAL = "orthogonal",  // Right-angle routing
+  STRAIGHT = "straight",      // Direct lines
+  AUTO_ROUTED = "auto"        // Obstacle-avoiding smart routing
+}
+
+export interface GridSettings {
+  pattern: "dots" | "lines" | "none";
+  snapToGrid: boolean;
+  adaptiveGrid: boolean; // Show finer grid when zoomed in
+}
+
+export interface ConnectionAppearance {
+  thicknessMode: "uniform" | "dataType" | "bandwidth";
+  showLabels: boolean;
+  showDirectionArrows: boolean;
+  animateFlow: boolean;
+  colorMode: "uniform" | "dataType" | "custom";
+}
+
+export interface PerformanceSettings {
+  animations: "none" | "essential" | "all";
+  shadowEffects: boolean;
+  maxVisibleNodes: number; // For culling in large flows
+}
+
+// A complete preferences object
+export interface EditorPreferences {
+  connectionRouting: ConnectionRoutingMode;
+  grid: GridSettings;
+  connectionAppearance: ConnectionAppearance;
+  performance: PerformanceSettings;
 }
