@@ -39,24 +39,28 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
       if (item && type) {
         setSelectedItem(item);
         setItemType(type);
+        let initialTabData: any = {};
+        let initialTab: string | null = 'general';
+
         if (type === 'node') {
             const node = item as Node;
-            setFormData({ ...node.data, color: node.color || '#666666' });
-            const firstTab = node.config?.tabs?.[0]?.id || 'general';
-            setActiveTab(firstTab);
+            initialTabData = { ...node.data, color: node.color || '#666666' };
+            initialTab = node.config?.tabs?.[0]?.id || 'general';
         } else if (type === 'group') {
             const group = item as NodeGroup;
-            setFormData({ ...group.style, title: group.title });
-            setActiveTab('style');
+            initialTabData = { ...group.style, title: group.title };
+            initialTab = 'style';
         } else if (type === 'connection') {
             const conn = item as Connection;
-            setFormData(conn.data || {});
-            setActiveTab('general');
+            initialTabData = conn.data || {};
+            initialTab = 'general';
         } else if (type === 'stickyNote') {
             const note = item as StickyNote;
-            setFormData(note.style || {});
-            setActiveTab('style');
+            initialTabData = note.style || {};
+            initialTab = 'style';
         }
+        setFormData(initialTabData);
+        setActiveTab(initialTab);
       } else {
         setSelectedItem(null);
         setItemType(null);
@@ -92,26 +96,25 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     const { name, value, type } = e.target;
     const isCheckbox = type === 'checkbox';
     const finalValue = isCheckbox ? (e.target as HTMLInputElement).checked : value;
-    setFormData((prev: any) => ({ ...prev, [name]: finalValue }));
-  };
+    
+    const newFormData = { ...formData, [name]: finalValue };
+    setFormData(newFormData);
 
-  useEffect(() => {
-    if (!controller || !selectedItem || !itemType || Object.keys(formData).length === 0) return;
+    if (!controller || !selectedItem || !itemType) return;
   
     if (itemType === 'node') {
-        const { color, ...nodeData } = formData;
-        controller.nodeManager.updateNode(selectedItem.id, { data: nodeData, color: color });
+        const { color, ...nodeData } = newFormData;
+        controller.nodeManager.updateNode(selectedItem.id, { data: nodeData, color: color, status: 'unsaved' });
     } else if (itemType === 'group') {
-        const { title, ...styleData } = formData;
+        const { title, ...styleData } = newFormData;
         controller.nodeGroupManager.updateGroup(selectedItem.id, { title, style: styleData });
     } else if (itemType === 'stickyNote') {
-      controller.stickyNoteManager.updateNote(selectedItem.id, { style: formData });
+      controller.stickyNoteManager.updateNote(selectedItem.id, { style: newFormData });
     } else if (itemType === 'connection') {
-      controller.connectionManager.updateConnectionData(selectedItem.id, formData);
+      controller.connectionManager.updateConnectionData(selectedItem.id, newFormData);
     }
-  }, [formData, controller, selectedItem, itemType]);
+  };
   
-
   const renderInput = (param: ConfigParameter) => {
     const value = formData[param.id] ?? param.defaultValue ?? '';
     
@@ -213,21 +216,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
   let icon: string;
   let subTitle: string = itemType;
 
-  if (itemType === 'group') {
-    const group = selectedItem as NodeGroup;
-    title = group.title;
-    icon = 'ph-selection-background';
-    subTitle = 'Group';
-    config = {
-        tabs: [{ id: 'style', label: 'Style', icon: 'ph-palette' }],
-        parameters: [
-            { id: 'title', tabId: 'style', type: 'text', label: 'Group Title', defaultValue: group.title },
-            { id: 'backgroundColor', tabId: 'style', type: 'color', label: 'Background Color', defaultValue: group.style.backgroundColor },
-            { id: 'borderColor', tabId: 'style', type: 'color', label: 'Border Color', defaultValue: group.style.borderColor },
-            { id: 'titleColor', tabId: 'style', type: 'color', label: 'Title Color', defaultValue: group.style.titleColor },
-        ]
-    };
-  } else if (itemType === 'node') {
+  if (itemType === 'node') {
     const node = selectedItem as Node;
     config = { ...node.config };
     config.parameters = [...(config.parameters || [])];
@@ -242,13 +231,55 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
         });
     }
     title = node.title;
-    icon = node.icon || 'ph-gear';
+    icon = node.icon || 'ph-cube';
     subTitle = node.type;
+  } else if (itemType === 'group') {
+    const group = selectedItem as NodeGroup;
+    title = group.title;
+    icon = 'ph-selection-background';
+    subTitle = 'Group';
+    config = {
+        tabs: [{ id: 'style', label: 'Style', icon: 'ph-palette' }],
+        parameters: [
+            { id: 'title', tabId: 'style', type: 'text', label: 'Group Title', defaultValue: group.title },
+            { id: 'backgroundColor', tabId: 'style', type: 'color', label: 'Background Color', defaultValue: group.style.backgroundColor },
+            { id: 'borderColor', tabId: 'style', type: 'color', label: 'Border Color', defaultValue: group.style.borderColor },
+            { id: 'titleColor', tabId: 'style', type: 'color', label: 'Title Color', defaultValue: group.style.titleColor },
+        ]
+    };
+  } else if (itemType === 'connection') {
+    const conn = selectedItem as Connection;
+    title = 'Connection';
+    icon = 'ph-link';
+    const sourcePort = controller?.nodeManager.getPort(conn.sourcePortId);
+    const targetPort = controller?.nodeManager.getPort(conn.targetPortId);
+    subTitle = `From ${sourcePort?.name || '?'} to ${targetPort?.name || '?'}`;
+    config = {
+        tabs: [{ id: 'general', label: 'General', icon: 'ph-link' }],
+        parameters: [
+            { id: 'label', tabId: 'general', type: 'text', label: 'Label', defaultValue: conn.data?.label || '' },
+            { id: 'color', tabId: 'general', type: 'color', label: 'Line Color', defaultValue: conn.data?.color || '#FFFFFF' },
+        ]
+    };
+  } else if (itemType === 'stickyNote') {
+    const note = selectedItem as StickyNote;
+    title = 'Sticky Note';
+    icon = 'ph-note';
+    subTitle = 'Annotation';
+    config = {
+        tabs: [{id: 'style', label: 'Style', icon: 'ph-paint-brush'}],
+        parameters: [
+            { id: 'backgroundColor', tabId: 'style', type: 'color', label: 'Background Color', defaultValue: note.style.backgroundColor },
+            { id: 'textColor', tabId: 'style', type: 'color', label: 'Text Color', defaultValue: note.style.textColor },
+            { id: 'fontSize', tabId: 'style', type: 'number', label: 'Font Size (px)', defaultValue: note.style.fontSize, validation: {min: 8, max: 72}},
+        ]
+    };
   } else {
-    config = (selectedItem as any).config || {};
-    title = (selectedItem as any).title || (selectedItem as StickyNote).content || 'Item';
-    icon = (selectedItem as Node).icon || 'ph-gear';
+    config = {};
+    title = 'Item';
+    icon = 'ph-gear';
   }
+
 
   const allParameters = config?.parameters || [];
   const allTabs = config?.tabs || [];
@@ -283,7 +314,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
 
         <div className="config-panel-content">
           {allParameters
-            .filter((param: any) => !activeTab || !param.tabId || param.tabId === activeTab)
+            .filter((param: any) => !allTabs.length || !param.tabId || param.tabId === activeTab)
             .map((param: any) => (
               <div key={param.id} className="form-group">
                 <label htmlFor={param.id}>{param.label}</label>

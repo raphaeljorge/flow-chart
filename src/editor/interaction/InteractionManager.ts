@@ -7,7 +7,7 @@ import { SelectionManager } from '../state/SelectionManager';
 import { ViewStore } from '../state/ViewStore';
 import {
   Point, Node, StickyNote, CanvasPointerEvent, CanvasWheelEvent, Rect, ViewState, NodePort, Connection,
-  InteractiveElementType, ReconnectingConnectionInfo, NodeGroup
+  InteractiveElementType, ReconnectingConnectionInfo, NodeGroup, ConnectionRoutingMode
 } from '../core/types';
 import {
     NODE_HEADER_HEIGHT,
@@ -151,12 +151,56 @@ export class InteractionManager {
     if (onBottom && onRight) return 'se';
     
     if (onTop && inXRange) return 'n';
-    if (onBottom && inXRange) return 's';
+    if (onBottom && inYRange) return 's';
     if (onLeft && inYRange) return 'w';
-    if (onRight && inXRange) return 'e';
+    if (onRight && inYRange) return 'e';
 
     return null; 
   }
+
+  private getConnectionMidpoint(p0: Point, p3: Point, viewState: ViewState): Point {
+      const routingMode = viewState.preferences.connectionRouting;
+      let midPoint: Point;
+  
+      switch (routingMode) {
+          case ConnectionRoutingMode.STRAIGHT:
+              midPoint = { x: (p0.x + p3.x) / 2, y: (p0.y + p3.y) / 2 };
+              break;
+          case ConnectionRoutingMode.ORTHOGONAL:
+              midPoint = { x: (p0.x + p3.x) / 2, y: (p0.y + p3.y) / 2 };
+              break;
+          case ConnectionRoutingMode.BEZIER:
+          default:
+              const offset = Math.min(Math.abs(p3.x - p0.x) * 0.4, 150 / viewState.scale) + 30 / viewState.scale;
+              const cp1x = p0.x + offset;
+              const cp1y = p0.y;
+              const cp2x = p3.x - offset;
+              const cp2y = p3.y;
+              const t = 0.5;
+              const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * cp1x + 3 * (1 - t) * t * t * cp2x + t * t * t * p3.x;
+              const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * cp1y + 3 * (1 - t) * t * t * cp2y + t * t * t * p3.y;
+              midPoint = { x, y };
+              break;
+      }
+      return midPoint;
+  }
+  
+  private getConnectionLabelRect(label: string, position: Point): Rect {
+      const ctx = this.canvasEngine.getContext();
+      const padding = 4;
+      ctx.font = `12px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+      const textMetrics = ctx.measureText(label);
+      const textWidth = textMetrics.width;
+      const textHeight = 12; 
+  
+      const rectWidth = textWidth + padding * 2;
+      const rectHeight = textHeight + padding * 2;
+      const rectX = position.x - rectWidth / 2;
+      const rectY = position.y - rectHeight / 2;
+  
+      return { x: rectX, y: rectY, width: rectWidth, height: rectHeight };
+  }
+
 
   public getInteractiveElementAtPoint(canvasPoint: Point): IdentifiedInteractiveElement {
     const currentViewState = this.viewStore.getState();
@@ -201,7 +245,18 @@ export class InteractionManager {
             if (distToP0Sq < reconHandleRadScaled**2) return { type: 'connection', id: conn.id, connectionDetails: conn, region: 'sourceHandle' };
             const distToP3Sq = (canvasPoint.x - p3.x)**2 + (canvasPoint.y - p3.y)**2;
             if (distToP3Sq < reconHandleRadScaled**2) return { type: 'connection', id: conn.id, connectionDetails: conn, region: 'targetHandle' };
-            if (this.isPointNearBezierConnection(canvasPoint, p0, p3, connHitThresh)) return { type: 'connection', id: conn.id, connectionDetails: conn, region: 'body' };
+            
+            if (this.isPointNearConnection(canvasPoint, p0, p3, connHitThresh, currentViewState)) {
+                return { type: 'connection', id: conn.id, connectionDetails: conn, region: 'body' };
+            }
+             if (conn.data?.label) {
+              const midPoint = this.getConnectionMidpoint(p0, p3, currentViewState);
+              const labelRect = this.getConnectionLabelRect(conn.data.label, midPoint);
+  
+              if (this.isPointInRect(canvasPoint, {x: labelRect.x, y: labelRect.y}, {width: labelRect.width, height: labelRect.height})) {
+                  return { type: 'connection', id: conn.id, connectionDetails: conn, region: 'body' };
+              }
+          }
         }
     }
 
@@ -220,21 +275,73 @@ export class InteractionManager {
     return { type: 'canvas' };
   }
 
-  private isPointNearBezierConnection(point: Point, p0: Point, p3: Point, threshold: number): boolean {
-    const minX = Math.min(p0.x, p3.x) - threshold * 5; const maxX = Math.max(p0.x, p3.x) + threshold * 5;
-    const minY = Math.min(p0.y, p3.y) - threshold * 5; const maxY = Math.max(p0.y, p3.y) + threshold * 5;
-    if (point.x < minX || point.x > maxX || point.y < minY || point.y < maxY) return false;
-    const lenSq = (p3.x - p0.x) ** 2 + (p3.y - p0.y) ** 2;
-    if (lenSq === 0) return Math.sqrt((point.x - p0.x) ** 2 + (point.y - p0.y) ** 2) < threshold;
-    let t = ((point.x - p0.x) * (p3.x - p0.x) + (point.y - p0.y) * (p3.y - p0.y)) / lenSq;
+  private isPointNearConnection(point: Point, p0: Point, p3: Point, threshold: number, viewState: ViewState): boolean {
+    const routingMode = viewState.preferences.connectionRouting;
+    switch (routingMode) {
+        case ConnectionRoutingMode.STRAIGHT:
+            return this.isPointNearStraightConnection(point, p0, p3, threshold);
+        case ConnectionRoutingMode.ORTHOGONAL:
+            return this.isPointNearOrthogonalConnection(point, p0, p3, threshold);
+        case ConnectionRoutingMode.BEZIER:
+        default:
+            return this.isPointNearBezierConnection(point, p0, p3, threshold, viewState);
+    }
+}
+
+private isPointNearStraightConnection(point: Point, p0: Point, p1: Point, threshold: number): boolean {
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) {
+        return Math.sqrt(Math.pow(point.x - p0.x, 2) + Math.pow(point.y - p0.y, 2)) < threshold;
+    }
+    let t = ((point.x - p0.x) * dx + (point.y - p0.y) * dy) / lenSq;
     t = Math.max(0, Math.min(1, t));
-    const projX = p0.x + t * (p3.x - p0.x); const projY = p0.y + t * (p3.y - p0.y);
-    const distSq = (point.x - projX) ** 2 + (point.y - projY) ** 2;
-    const curveLengthApprox = Math.abs(p0.x - p3.x) + Math.abs(p0.y - p3.y);
-    const midX = (p0.x + p3.x) / 2; const midY = (p0.y + p3.y) / 2;
-    const distToMidSq = (point.x - midX)**2 + (point.y - midY)**2;
-    if (distSq < threshold ** 2 || (distToMidSq < (curveLengthApprox / 3)**2 && distSq < (threshold * 2)**2) ) return true;
+    const projX = p0.x + t * dx;
+    const projY = p0.y + t * dy;
+    const distSq = Math.pow(point.x - projX, 2) + Math.pow(point.y - projY, 2);
+    return distSq < threshold * threshold;
+}
+
+private isPointNearOrthogonalConnection(point: Point, p0: Point, p3: Point, threshold: number): boolean {
+    const midX = (p0.x + p3.x) / 2;
+    const segments: [Point, Point][] = [
+        [p0, { x: midX, y: p0.y }],
+        [{ x: midX, y: p0.y }, { x: midX, y: p3.y }],
+        [{ x: midX, y: p3.y }, p3]
+    ];
+    for (const segment of segments) {
+        if (this.isPointNearStraightConnection(point, segment[0], segment[1], threshold)) {
+            return true;
+        }
+    }
     return false;
+}
+
+  private isPointNearBezierConnection(point: Point, p0: Point, p3: Point, threshold: number, viewState: ViewState): boolean {
+    const offset = Math.min(Math.abs(p3.x - p0.x) * 0.4, 150 / viewState.scale) + 30 / viewState.scale;
+    const p1 = { x: p0.x + offset, y: p0.y };
+    const p2 = { x: p3.x - offset, y: p3.y };
+
+    const minX = Math.min(p0.x, p3.x) - threshold * 2;
+    const maxX = Math.max(p0.x, p3.x) + threshold * 2;
+    const minY = Math.min(p0.y, p3.y) - threshold * 2;
+    const maxY = Math.max(p0.y, p3.y) + threshold * 2;
+    
+    if (point.x < minX || point.x > maxX || point.y < minY || point.y > maxY) {
+        return false;
+    }
+
+    let closestDistSq = Infinity;
+    for (let t = 0; t <= 1; t += 0.05) {
+        const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * p1.x + 3 * (1 - t) * Math.pow(t, 2) * p2.x + Math.pow(t, 3) * p3.x;
+        const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * p1.y + 3 * (1 - t) * Math.pow(t, 2) * p2.y + Math.pow(t, 3) * p3.y;
+        const distSq = (point.x - x) ** 2 + (point.y - y) ** 2;
+        if (distSq < closestDistSq) {
+            closestDistSq = distSq;
+        }
+    }
+    return closestDistSq < threshold * threshold;
   }
 
   private nodeToDraggableItem(node: Node): DraggableItem { return { id: node.id, type: 'node', position: { ...node.position }, width: node.width, height: node.height }; }

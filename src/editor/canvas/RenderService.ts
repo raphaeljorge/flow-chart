@@ -467,20 +467,25 @@ export class RenderService {
 
     // --- NEW: Routing Logic ---
     const routingMode = viewState.preferences.connectionRouting;
+    let midPoint;
     switch (routingMode) {
         case ConnectionRoutingMode.STRAIGHT:
-            this.drawStraightPath(ctx, p0, p3);
+            midPoint = this.drawStraightPath(ctx, p0, p3);
             break;
         case ConnectionRoutingMode.ORTHOGONAL:
-            this.drawOrthogonalPath(ctx, p0, p3);
+            midPoint = this.drawOrthogonalPath(ctx, p0, p3);
             break;
         case ConnectionRoutingMode.BEZIER:
         default:
-            this.drawBezierPath(ctx, p0, p3, viewState);
+            midPoint = this.drawBezierPath(ctx, p0, p3, viewState);
             break;
     }
     
     ctx.stroke();
+
+    if (conn.data?.label) {
+        this.drawConnectionLabel(ctx, conn.data.label, midPoint);
+    }
 
     // Reset line dash for other rendering operations
     ctx.setLineDash([]);
@@ -508,25 +513,49 @@ export class RenderService {
     ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
   }
 
-  private drawStraightPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): void {
+  private drawStraightPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): Point {
     ctx.moveTo(p0.x, p0.y);
     ctx.lineTo(p3.x, p3.y);
+    return { x: (p0.x + p3.x) / 2, y: (p0.y + p3.y) / 2 };
   }
 
-  private drawBezierPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point, viewState: ViewState): void {
+  private drawBezierPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point, viewState: ViewState): Point {
     ctx.moveTo(p0.x, p0.y);
     const offset = Math.min(Math.abs(p3.x - p0.x) * 0.4, 150 / viewState.scale) + 30 / viewState.scale;
     const cp1x = p0.x + offset; const cp1y = p0.y;
     const cp2x = p3.x - offset; const cp2y = p3.y;
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y);
+     // Calculate the midpoint of the Bezier curve
+    const t = 0.5;
+    const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * cp1x + 3 * (1 - t) * Math.pow(t, 2) * cp2x + Math.pow(t, 3) * p3.x;
+    const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * cp1y + 3 * (1 - t) * Math.pow(t, 2) * cp2y + Math.pow(t, 3) * p3.y;
+
+    return { x, y };
   }
 
-  private drawOrthogonalPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): void {
+  private drawOrthogonalPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): Point {
     const midX = (p0.x + p3.x) / 2;
     ctx.moveTo(p0.x, p0.y);
     ctx.lineTo(midX, p0.y); // Primeiro segmento horizontal
     ctx.lineTo(midX, p3.y);  // Segmento vertical
     ctx.lineTo(p3.x, p3.y);  // Segundo segmento horizontal
+    return { x: midX, y: (p0.y + p3.y) / 2 };
+  }
+  
+  private drawConnectionLabel(ctx: CanvasRenderingContext2D, label: string, position: Point) {
+    const padding = 4;
+    ctx.font = `12px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
+    const textMetrics = ctx.measureText(label);
+    const textWidth = textMetrics.width;
+    const textHeight = 12;
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(position.x - textWidth / 2 - padding, position.y - textHeight / 2 - padding, textWidth + padding * 2, textHeight + padding * 2);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, position.x, position.y);
   }
 
   private renderPorts(): void {
