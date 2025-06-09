@@ -7,7 +7,7 @@ import { ConnectionManager } from '../state/ConnectionManager';
 import { ViewStore } from '../state/ViewStore';
 import { 
   Node, StickyNote, ViewState, NodePort, Connection, NodeGroup, 
-  Point, ConnectionRoutingMode 
+  Point, ConnectionRoutingMode, LineStyle
 } from '../core/types';
 import {
   NODE_HEADER_HEIGHT,
@@ -41,6 +41,10 @@ export class RenderService {
     this.loadThemeColors();
     
     viewStore.on(EVENT_VIEW_CHANGED, this.handleViewChange);
+
+    if (viewStore.getState().preferences.connectionAppearance.animateFlow) {
+      this.startAnimationLoop();
+  }
   }
 
   private handleViewChange = (newState: ViewState, oldState?: ViewState) => {
@@ -56,7 +60,7 @@ export class RenderService {
   }
 
   private startAnimationLoop = () => {
-    if (this.animationFrameId) return; // Already running
+    if (this.animationFrameId) return; // Já está rodando
     const animate = () => {
         this.canvasEngine.requestRender();
         this.animationFrameId = requestAnimationFrame(animate);
@@ -65,10 +69,10 @@ export class RenderService {
   }
 
   private stopAnimationLoop = () => {
-      if (this.animationFrameId) {
-          cancelAnimationFrame(this.animationFrameId);
-          this.animationFrameId = null;
-      }
+    if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
+    }
   }
 
   private loadThemeColors(): void {
@@ -110,10 +114,9 @@ export class RenderService {
     };
   }
 
-
   private handleBeforeRender = (ctx: CanvasRenderingContext2D, viewState: ViewState): void => {
     this.ctx = ctx;
-    this.currentViewState = viewState; // Store current view state for rendering methods
+    this.currentViewState = viewState;
 
     this.renderGroups();
     this.renderConnections();
@@ -174,29 +177,6 @@ export class RenderService {
   }
 
   private renderResizeHandles(): void {
-    // if (!this.ctx || !this.currentViewState) return;
-    // const selectedIds = this.selectionManager.getSelectedItems();
-    // if (selectedIds.length !== 1) return;
-
-    // const item = this.interactionManager.findDraggableItemById(selectedIds[0]);
-    // if (!item || (item.type !== 'node' && item.type !== 'stickyNote')) return;
-
-    // const { x, y } = item.position;
-    // const itemWidth = item.width;
-    // const itemHeight = item.height;
-    // const handleScaledSize = RESIZE_HANDLE_SIZE / this.currentViewState.scale;
-
-    // this.ctx.fillStyle = this.themeColors.selectionHighlight || '#6366f1';
-    // const handlesPoints: Point[] = [
-    //   { x: x, y: y }, { x: x + itemWidth / 2, y: y }, { x: x + itemWidth, y: y },
-    //   { x: x, y: y + itemHeight / 2 }, { x: x + itemWidth, y: y + itemHeight / 2 },
-    //   { x: x, y: y + itemHeight }, { x: x + itemWidth / 2, y: y + itemHeight }, { x: x + itemWidth, y: y + itemHeight },
-    // ];
-    // handlesPoints.forEach(p => {
-    //   this.ctx!.beginPath();
-    //   this.ctx!.arc(p.x, p.y, handleScaledSize / 2, 0, Math.PI * 2);
-    //   this.ctx!.fill();
-    // });
     return;
   }
 
@@ -404,7 +384,7 @@ export class RenderService {
 
   private renderPendingOrReconnectingConnection(): void {
     if (!this.ctx || !this.currentViewState) return;
-    const pendingConn = this.interactionManager.getPendingConnection(); // Assumes InteractionManager provides this
+    const pendingConn = this.interactionManager.getPendingConnection();
     if (pendingConn) {
       this.ctx.beginPath();
       this.ctx.moveTo(pendingConn.fromPosition.x, pendingConn.fromPosition.y);
@@ -441,7 +421,7 @@ export class RenderService {
 
     connections.forEach(conn => {
       if (pendingReconInfo && pendingReconInfo.originalConnection.id === conn.id) {
-        this.drawConnection(conn, this.currentViewState!, this.ctx!, true); // Ghosted
+        this.drawConnection(conn, this.currentViewState!, this.ctx!, true);
         return;
       }
       const isSelected = this.selectionManager.isSelected(conn.id);
@@ -462,10 +442,9 @@ export class RenderService {
 
     ctx.beginPath();
     
-    // Setup line style
     this.setupConnectionStyle(ctx, conn, viewState, isGhosted, isSelected);
 
-    // --- NEW: Routing Logic ---
+    // --- Lógica de Roteamento ---
     const routingMode = viewState.preferences.connectionRouting;
     let midPoint;
     switch (routingMode) {
@@ -487,29 +466,40 @@ export class RenderService {
         this.drawConnectionLabel(ctx, conn.data.label, midPoint);
     }
 
-    // Reset line dash for other rendering operations
+    // Reseta o estilo da linha para não afetar outras renderizações
     ctx.setLineDash([]);
   }
 
   private setupConnectionStyle(ctx: CanvasRenderingContext2D, conn: Connection, viewState: ViewState, isGhosted: boolean, isSelected: boolean): void {
     if (isGhosted) {
-        ctx.strokeStyle = this.themeColors.connectionGhosted;
-        ctx.lineWidth = 1 / viewState.scale;
-        ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
-        return;
+      ctx.strokeStyle = this.themeColors.connectionGhosted;
+      ctx.lineWidth = 1 / viewState.scale;
+      ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
+      return;
     }
     
-    // NEW: Animated flow
-    if (viewState.preferences.connectionAppearance.animateFlow) {
-        const lineDash = [8 / viewState.scale, 10 / viewState.scale];
-        ctx.setLineDash(lineDash);
-        const time = Date.now() / 50;
-        ctx.lineDashOffset = -time % (lineDash[0] + lineDash[1]);
+    const lineStyle = conn.style?.lineStyle || 'solid';
+    const isAnimated = viewState.preferences.connectionAppearance.animateFlow && conn.style?.animated;
+
+    // Define o estilo da linha (tracejado, pontilhado)
+    let lineDash: number[] = [];
+    if (lineStyle === 'dashed' || (isAnimated && lineStyle !== 'dotted')) {
+        lineDash = [10 / viewState.scale, 8 / viewState.scale];
+    } else if (lineStyle === 'dotted') {
+        lineDash = [2 / viewState.scale, 6 / viewState.scale];
+    }
+    ctx.setLineDash(lineDash);
+    
+    // Aplica a animação de fluxo
+    if (isAnimated) {
+      const time = Date.now() / 50;
+      const totalDashLength = (lineDash[0] || 0) + (lineDash[1] || 0);
+      ctx.lineDashOffset = -time % totalDashLength;
     } else {
-        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
     }
     
-    ctx.strokeStyle = conn.data?.color || this.themeColors.connectionDefault;
+    ctx.strokeStyle = conn.style?.color || this.themeColors.connectionDefault;
     ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
   }
 
@@ -571,8 +561,6 @@ export class RenderService {
         const portAbsPos = this.interactionManager.getPortAbsolutePosition(node, port, this.currentViewState!);
         this.drawPort(this.ctx!, port, portAbsPos.x, portAbsPos.y, this.currentViewState!,
           this.hoveredCompatiblePortId === port.id || this.hoveredPortIdIdle === port.id);
-
-        // Port label
         this.ctx!.fillStyle = this.themeColors.nodePortText;
         this.ctx!.font = `11px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
         this.ctx!.textAlign = 'left';

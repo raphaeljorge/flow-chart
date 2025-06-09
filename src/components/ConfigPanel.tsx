@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { NodeEditorController } from '../editor/app/NodeEditorController';
-import { Node, Connection, StickyNote, ConfigurableItem, ConfigurableItemType, ConfigParameter, NodeGroup } from '../editor/core/types';
+import { Node, Connection, StickyNote, ConfigurableItem, ConfigurableItemType, ConfigParameter, NodeGroup, LineStyle } from '../editor/core/types';
 import '../editor/components/ConfigPanel/ConfigPanel.css';
 
 interface ConfigPanelProps {
@@ -52,7 +52,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             initialTab = 'style';
         } else if (type === 'connection') {
             const conn = item as Connection;
-            initialTabData = conn.data || {};
+            // MODIFIED: Inclui os novos estilos no estado do formulário
+            initialTabData = { ...conn.data, ...conn.style }; 
             initialTab = 'general';
         } else if (type === 'stickyNote') {
             const note = item as StickyNote;
@@ -111,7 +112,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     } else if (itemType === 'stickyNote') {
       controller.stickyNoteManager.updateNote(selectedItem.id, { style: newFormData });
     } else if (itemType === 'connection') {
-      controller.connectionManager.updateConnectionData(selectedItem.id, newFormData);
+      const { label, ...styleData } = newFormData;
+      controller.connectionManager.updateConnectionData(selectedItem.id, { label });
+      controller.connectionManager.updateConnectionStyle(selectedItem.id, styleData);
     }
   };
   
@@ -255,10 +258,23 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     const targetPort = controller?.nodeManager.getPort(conn.targetPortId);
     subTitle = `From ${sourcePort?.name || '?'} to ${targetPort?.name || '?'}`;
     config = {
-        tabs: [{ id: 'general', label: 'General', icon: 'ph-link' }],
+        tabs: [
+            { id: 'general', label: 'General', icon: 'ph-link' },
+            { id: 'appearance', label: 'Appearance', icon: 'ph-palette' },
+        ],
         parameters: [
             { id: 'label', tabId: 'general', type: 'text', label: 'Label', defaultValue: conn.data?.label || '' },
-            { id: 'color', tabId: 'general', type: 'color', label: 'Line Color', defaultValue: conn.data?.color || '#FFFFFF' },
+            { 
+              id: 'lineStyle', tabId: 'appearance', type: 'select', label: 'Line Style',
+              defaultValue: conn.style?.lineStyle || 'solid',
+              options: [
+                { value: 'solid', label: 'Solid' },
+                { value: 'dashed', label: 'Dashed' },
+                { value: 'dotted', label: 'Dotted' },
+              ]
+            },
+            { id: 'color', tabId: 'appearance', type: 'color', label: 'Line Color', defaultValue: conn.style?.color || '#FFFFFF' },
+            { id: 'animated', tabId: 'appearance', type: 'boolean', label: 'Animate Flow', defaultValue: !!conn.style?.animated },
         ]
     };
   } else if (itemType === 'stickyNote') {

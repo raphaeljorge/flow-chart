@@ -121,6 +121,7 @@ export interface ConfigParameter {
   tabId?: string;
 }
 
+export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export interface Connection {
   id: string;
   sourcePortId: string;
@@ -131,6 +132,11 @@ export interface Connection {
     label?: string;
     color?: string;
   };
+  style?: {
+    color?: string;
+    lineStyle?: LineStyle;
+    animated?: boolean;
+  }
 }
 
 export interface ViewState {

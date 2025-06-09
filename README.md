@@ -209,7 +209,7 @@ node-based-software-builder/
 
 - ❌ **Connection routing improvements** (currently straight lines, no curved/smart routing)
 
-- ❌ **Connection labels/annotations**
+- ✅ **Connection labels/annotations**
 
 - ❌ **Connection styles** (dashed, dotted, colored by type)
 
