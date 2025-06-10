@@ -278,10 +278,13 @@ export class InteractionManager {
     const connHitThresh = CONNECTION_HIT_THRESHOLD / currentViewState.scale;
     const reconHandleRadScaled =
       RECONNECT_HANDLE_RADIUS / currentViewState.scale;
-    const selectedIds = this.selectionManager.getSelectedItems();
 
-    if (selectedIds.length === 1) {
-      const selectedItem = this.findDraggableItemById(selectedIds[0]);
+    // Check for resize handles on a single selected item
+    if (this.selectionManager.getSelectionCount() === 1) {
+      const selectedId = this.selectionManager.getSingleSelectedItem()!;
+      const selectedItem = this.findDraggableItemById(selectedId);
+
+      // Ensure the item is something resizable (node, note, or group)
       if (selectedItem) {
         const borderRegion = this.getBorderRegionAtPoint(
           canvasPoint,
@@ -289,6 +292,7 @@ export class InteractionManager {
           currentViewState
         );
         if (borderRegion) {
+          // If the cursor is on the border, return a 'resizeHandle' type
           return {
             type: "resizeHandle",
             item: selectedItem,
@@ -1217,11 +1221,18 @@ export class InteractionManager {
     const viewState = this.viewStore.getState();
     let actualItem: Node | StickyNote | NodeGroup | undefined;
 
-    if (item.type === "node") actualItem = this.nodeManager.getNode(item.id);
-    else if (item.type === "stickyNote")
-      actualItem = this.stickyNoteManager.getNote(item.id);
-    else if (item.type === "group")
-      actualItem = this.nodeGroupManager.getGroup(item.id);
+    // Find the item being resized from the correct manager
+    switch (item.type) {
+      case "node":
+        actualItem = this.nodeManager.getNode(item.id);
+        break;
+      case "stickyNote":
+        actualItem = this.stickyNoteManager.getNote(item.id);
+        break;
+      case "group":
+        actualItem = this.nodeGroupManager.getGroup(item.id);
+        break;
+    }
 
     let minHeight = MIN_NODE_HEIGHT;
 
@@ -1287,11 +1298,18 @@ export class InteractionManager {
       height: newHeight,
     };
 
-    if (item.type === "node") this.nodeManager.resizeNode(item.id, newRect);
-    else if (item.type === "stickyNote")
-      this.stickyNoteManager.updateNoteRect(item.id, newRect);
-    else if (item.type === "group")
-      this.nodeGroupManager.resizeGroup(item.id, newRect);
+    // Call the correct manager based on the item type
+    switch (item.type) {
+      case "node":
+        this.nodeManager.resizeNode(item.id, newRect);
+        break;
+      case "stickyNote":
+        this.stickyNoteManager.updateNoteRect(item.id, newRect);
+        break;
+      case "group":
+        this.nodeGroupManager.resizeGroup(item.id, newRect);
+        break;
+    }
   }
 
   private handleWheel = (e: CanvasWheelEvent): void => {
