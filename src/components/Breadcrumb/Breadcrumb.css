@@ -1,0 +1,48 @@
+/* src/components/Breadcrumb.css */
+.breadcrumb-container {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1002;
+  background: rgba(42, 42, 42, 0.8);
+  backdrop-filter: blur(5px);
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.breadcrumb-item:not(:last-child)::after {
+  content: "/";
+  margin: 0 10px;
+  color: #888;
+}
+
+.breadcrumb-item a {
+  color: #a0a0a0;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.breadcrumb-item a:hover {
+  color: #ffffff;
+}
+
+.breadcrumb-item .breadcrumb-current {
+  color: #ffffff;
+  font-weight: 500;
+}

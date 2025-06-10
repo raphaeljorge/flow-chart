@@ -14,7 +14,7 @@ import {
   InteractiveElementType,
   NodePort,
   ClipboardableItemType,
-  EditorPreferences
+  EditorPreferences,
 } from "../core/types";
 import {
   EVENT_VIEW_CHANGED,
@@ -99,6 +99,8 @@ export class NodeEditorController {
 
   private availableNodeDefinitions: NodeDefinition[] = [];
 
+  private fullGraphState: GraphState;
+
   constructor(
     container: HTMLElement,
     options: Partial<NodeEditorOptions> = {}
@@ -168,15 +170,99 @@ export class NodeEditorController {
       this.viewStore
     );
 
+    this.fullGraphState = this.getCurrentGraphState(); // Inicializar
+
     this.initializeUIComponents();
     this.wireUpCoreEvents();
     this.wireUpShortcuts();
+    this.wireUpNavigationEvents(); // Adicionar esta chamada
+
     this.loadInitialNodeDefinitions().then(() => {
       this.recordInitialHistoryState();
       this.canvasEngine.requestRender();
       console.log("NodeEditorController initialized.");
       this.events.emit("ready");
     });
+  }
+
+  private wireUpNavigationEvents(): void {
+    this.interactionManager.on('nodeDoubleClick', (nodeId: string) => {
+        const node = this.nodeManager.getNode(nodeId);
+        if (node && node.subgraph) {
+            this.navigateToSubgraph(node);
+        }
+    });
+  }
+
+  private navigateToSubgraph(node: Node): void {
+    const currentGraphId = this.viewStore.getCurrentGraphId();
+    const parentNode = this.findNodeInFullState(currentGraphId);
+    
+    const stateToSave = this.getCurrentGraphState();
+
+    if (parentNode) {
+        // Agora esta atribuição está correta tipograficamente
+        parentNode.subgraph = stateToSave;
+    } else { 
+        this.fullGraphState = stateToSave;
+    }
+
+    this.viewStore.navigateTo(node.id, node.title);
+    
+    const subgraphState: GraphState = node.subgraph || {
+      nodes: [],
+      connections: [],
+      stickyNotes: [],
+      nodeGroups: [],
+      viewState: { ...this.viewStore.getState(), offset: { x: 40, y: 40 }, scale: 1 }
+    };
+    
+    this.loadGraphState(subgraphState, true, false); 
+  }
+
+  public navigateToGraphId(graphId: string): void {
+    const currentGraphId = this.viewStore.getCurrentGraphId();
+    if (currentGraphId === graphId) return;
+
+    const currentNode = this.findNodeInFullState(currentGraphId);
+    if (currentNode) {
+        currentNode.subgraph = this.getCurrentGraphState();
+    } else {
+        this.fullGraphState = this.getCurrentGraphState();
+    }
+    
+    const targetNode = this.findNodeInFullState(graphId);
+    let targetState: GraphState;
+    
+    if (graphId === 'root' || !targetNode) {
+        targetState = this.fullGraphState;
+    } else {
+        targetState = targetNode.subgraph || {
+          nodes: [],
+          connections: [],
+          stickyNotes: [],
+          nodeGroups: [],
+          viewState: this.fullGraphState.viewState
+        };
+    }
+
+    this.viewStore.navigateUpTo(graphId);
+    this.loadGraphState(targetState, true, false);
+  }
+
+  private findNodeInFullState(nodeId: string): Node | undefined {
+    if (nodeId === 'root') return undefined;
+    const find = (nodes: Node[]): Node | undefined => {
+        for (const node of nodes) {
+            if (node.id === nodeId) return node;
+            if (node.subgraph?.nodes) {
+                const found = find(node.subgraph.nodes);
+                if (found) return found;
+            }
+        }
+        return undefined;
+    };
+    return find(this.fullGraphState.nodes);
   }
 
   private validateContainer(): void {
@@ -949,14 +1035,28 @@ export class NodeEditorController {
   }
 
   public async saveGraphToLocalStorage(): Promise<void> {
+    const currentGraphId = this.viewStore.getCurrentGraphId();
     const stateToSave = this.getCurrentGraphState();
-    await this.platformDataService.saveGraph(stateToSave);
+  
+    // Atualizar o estado correto no grafo completo antes de salvar
+    if (currentGraphId === 'root') {
+      this.fullGraphState = stateToSave;
+    } else {
+      const parentNode = this.findNodeInFullState(currentGraphId);
+      if (parentNode) {
+        parentNode.subgraph = stateToSave;
+      }
+    }
+  
+    await this.platformDataService.saveGraph(this.fullGraphState);
   }
 
   public async loadGraphFromLocalStorage(): Promise<boolean> {
-    const graphState = await this.platformDataService.loadGraph();
-    if (graphState) {
-      this.loadGraphState(graphState, true);
+    const loadedState = await this.platformDataService.loadGraph();
+    if (loadedState) {
+      this.fullGraphState = JSON.parse(JSON.stringify(loadedState));
+      this.viewStore.navigateUpTo('root'); // Resetar a navegação para a raiz
+      this.loadGraphState(this.fullGraphState, true);
       return true;
     }
     return false;
@@ -991,7 +1091,7 @@ export class NodeEditorController {
     return JSON.parse(JSON.stringify(pureState));
   }
 
-  private loadGraphState(graphState: GraphState, pushToHistory: boolean = true): void {
+  private loadGraphState(graphState: GraphState, pushToHistory: boolean = true, saveToFullState: boolean = true): void {
     this.selectionManager.clearSelection();
     this.nodeManager.loadNodes(graphState.nodes || []);
     this.connectionManager.loadConnections(graphState.connections || []);
@@ -1002,6 +1102,18 @@ export class NodeEditorController {
         this.viewStore.setState(graphState.viewState);
     } else {
         this.zoomToFitContent();
+    }
+    
+    if (saveToFullState) {
+        const currentGraphId = this.viewStore.getCurrentGraphId();
+        if(currentGraphId === 'root') {
+            this.fullGraphState = JSON.parse(JSON.stringify(graphState));
+        } else {
+             const parentNode = this.findNodeInFullState(currentGraphId);
+             if(parentNode) {
+                parentNode.subgraph = this.getCurrentGraphState();
+             }
+        }
     }
     
     if (pushToHistory && !this.historyManager.isRestoringState()) {

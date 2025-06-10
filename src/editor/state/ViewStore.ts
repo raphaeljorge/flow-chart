@@ -1,5 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
-import { ViewState, Point, CanvasBackgroundPattern, EditorPreferences, ConnectionRoutingMode } from '../core/types';
+import { ViewState, Point, CanvasBackgroundPattern, EditorPreferences, ConnectionRoutingMode, BreadcrumbEntry } from '../core/types';
 import { EVENT_VIEW_CHANGED, DEFAULT_SCALE, DEFAULT_GRID_SIZE } from '../core/constants';
 
 export class ViewStore {
@@ -37,6 +37,7 @@ export class ViewStore {
       showGrid: defaultPreferences.grid.pattern !== 'none',
       snapToGrid: defaultPreferences.grid.snapToGrid,
       backgroundPattern: defaultPreferences.grid.pattern,
+      navigationPath: initialState?.navigationPath ?? [{ graphId: 'root', label: 'Main Flow' }], // Adicionado
     };
     
     this.events = new EventEmitter();
@@ -50,6 +51,27 @@ export class ViewStore {
     const oldState = { ...this.state };
     this.state = { ...this.state, ...newState };
     this.events.emit(EVENT_VIEW_CHANGED, this.state, oldState);
+  }
+
+  public navigateTo(graphId: string, label: string): void {
+    const newPath = [...this.state.navigationPath, { graphId, label }];
+    this.setState({ navigationPath: newPath });
+  }
+
+  public navigateUpTo(graphId: string): void {
+      const index = this.state.navigationPath.findIndex(entry => entry.graphId === graphId);
+      if (index !== -1) {
+          const newPath = this.state.navigationPath.slice(0, index + 1);
+          this.setState({ navigationPath: newPath });
+      }
+  }
+
+  public getCurrentGraphId(): string {
+      return this.state.navigationPath[this.state.navigationPath.length - 1].graphId;
+  }
+
+  public getNavigationPath(): BreadcrumbEntry[] {
+      return this.state.navigationPath;
   }
 
   public setScale(scale: number): void {

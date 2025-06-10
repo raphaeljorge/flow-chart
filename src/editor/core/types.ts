@@ -47,6 +47,7 @@ export interface Node {
   config?: NodeConfig;
   color?: string;
   groupId?: string;
+  subgraph?: GraphState;
 }
 
 export interface StickyNote {
@@ -138,6 +139,11 @@ export interface Connection {
   }
 }
 
+export interface BreadcrumbEntry {
+  graphId: string; // 'root' para o grafo principal, ou o ID do nó para subgrafos
+  label: string;   // O texto a ser exibido (e.g., "Main Flow", "My Composite Node")
+}
+
 export interface ViewState {
   scale: number;
   offset: Point;
@@ -146,6 +152,7 @@ export interface ViewState {
   gridSize: number;
   backgroundPattern: CanvasBackgroundPattern;
   preferences: EditorPreferences;
+  navigationPath: BreadcrumbEntry[];
 }
 
 export interface NodeDefinition {

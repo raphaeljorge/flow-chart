@@ -97,11 +97,20 @@ export class InteractionManager {
     this.canvasEngine.on('pointerup', this.handlePointerUp);
     this.canvasEngine.on('pointerleave', this.handlePointerLeave);
     this.canvasEngine.on('wheel', this.handleWheel);
-    this.canvasEngine.on('doubleclick', (e: CanvasPointerEvent) => this.events.emit('canvasDoubleClick', e));
+    this.canvasEngine.on('doubleclick', this.handleDoubleClick);
     this.canvasEngine.on('contextmenu', (e: CanvasPointerEvent) => {
         this.lastPointerDownCanvasPoint = e.canvasPoint;
         this.events.emit('canvasContextMenu', e);
     });
+  }
+
+  private handleDoubleClick = (e: CanvasPointerEvent): void => {
+    const interactiveElement = this.getInteractiveElementAtPoint(e.canvasPoint);
+    if (interactiveElement.type === 'node' && interactiveElement.id) {
+        this.events.emit('nodeDoubleClick', interactiveElement.id, e);
+    } else {
+        this.events.emit('canvasDoubleClick', e);
+    }
   }
   
   public getLastPointerDownCanvasPoint(): Point | null { return this.lastPointerDownCanvasPoint; }
