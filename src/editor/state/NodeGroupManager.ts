@@ -46,6 +46,12 @@ export class NodeGroupManager {
 
     // Update nodes to set their groupId
     nodesToGroup.forEach(node => {
+      if (node.groupId) {
+          const oldGroup = this.groups.get(node.groupId);
+          if (oldGroup) {
+            oldGroup.childNodes.delete(node.id);
+          }
+      }
       this.nodeManager.updateNode(node.id, { groupId: group.id });
     });
 

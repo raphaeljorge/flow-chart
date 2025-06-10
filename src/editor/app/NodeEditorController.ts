@@ -38,7 +38,7 @@ import { NodeManager } from "../state/NodeManager";
 import { ConnectionManager } from "../state/ConnectionManager";
 import { StickyNoteManager } from "../state/StickyNoteManager";
 import { SelectionManager } from "../state/SelectionManager";
-import { NodeGroupManager } from '../state/NodeGroupManager';
+import { NodeGroupManager } from "../state/NodeGroupManager";
 import { ClipboardManager } from "../state/ClipboardManager";
 import { HistoryManager } from "../state/HistoryManager";
 import { ViewStore } from "../state/ViewStore";
@@ -47,7 +47,7 @@ import { ShortcutManager } from "../interaction/ShortcutManager";
 import { DndController } from "../interaction/DndController";
 import { EditorIconService } from "../services/EditorIconService";
 import { PlatformDataService } from "../services/PlatformDataService";
-import { AutoLayoutService } from '../services/AutoLayoutService';
+import { AutoLayoutService } from "../services/AutoLayoutService";
 import { NodePalette } from "../components/NodePalette/NodePalette";
 import { ConfigPanel } from "../components/ConfigPanel/ConfigPanel";
 import { Toolbar } from "../components/Toolbar/Toolbar";
@@ -158,7 +158,7 @@ export class NodeEditorController {
       this.selectionManager,
       (id: string) => this.availableNodeDefinitions.find((def) => def.id === id)
     );
-    
+
     this.renderService = new RenderService(
       this.canvasEngine,
       this.nodeManager,
@@ -186,38 +186,42 @@ export class NodeEditorController {
   }
 
   private wireUpNavigationEvents(): void {
-    this.interactionManager.on('nodeDoubleClick', (nodeId: string) => {
-        const node = this.nodeManager.getNode(nodeId);
-        if (node && node.subgraph) {
-            this.navigateToSubgraph(node);
-        }
+    this.interactionManager.on("nodeDoubleClick", (nodeId: string) => {
+      const node = this.nodeManager.getNode(nodeId);
+      if (node && node.subgraph) {
+        this.navigateToSubgraph(node);
+      }
     });
   }
 
   private navigateToSubgraph(node: Node): void {
     const currentGraphId = this.viewStore.getCurrentGraphId();
     const parentNode = this.findNodeInFullState(currentGraphId);
-    
+
     const stateToSave = this.getCurrentGraphState();
 
     if (parentNode) {
-        // Agora esta atribuição está correta tipograficamente
-        parentNode.subgraph = stateToSave;
-    } else { 
-        this.fullGraphState = stateToSave;
+      // Agora esta atribuição está correta tipograficamente
+      parentNode.subgraph = stateToSave;
+    } else {
+      this.fullGraphState = stateToSave;
     }
 
     this.viewStore.navigateTo(node.id, node.title);
-    
+
     const subgraphState: GraphState = node.subgraph || {
       nodes: [],
       connections: [],
       stickyNotes: [],
       nodeGroups: [],
-      viewState: { ...this.viewStore.getState(), offset: { x: 40, y: 40 }, scale: 1 }
+      viewState: {
+        ...this.viewStore.getState(),
+        offset: { x: 40, y: 40 },
+        scale: 1,
+      },
     };
-    
-    this.loadGraphState(subgraphState, true, false); 
+
+    this.loadGraphState(subgraphState, true, false);
   }
 
   public navigateToGraphId(graphId: string): void {
@@ -226,24 +230,24 @@ export class NodeEditorController {
 
     const currentNode = this.findNodeInFullState(currentGraphId);
     if (currentNode) {
-        currentNode.subgraph = this.getCurrentGraphState();
+      currentNode.subgraph = this.getCurrentGraphState();
     } else {
-        this.fullGraphState = this.getCurrentGraphState();
+      this.fullGraphState = this.getCurrentGraphState();
     }
-    
+
     const targetNode = this.findNodeInFullState(graphId);
     let targetState: GraphState;
-    
-    if (graphId === 'root' || !targetNode) {
-        targetState = this.fullGraphState;
+
+    if (graphId === "root" || !targetNode) {
+      targetState = this.fullGraphState;
     } else {
-        targetState = targetNode.subgraph || {
-          nodes: [],
-          connections: [],
-          stickyNotes: [],
-          nodeGroups: [],
-          viewState: this.fullGraphState.viewState
-        };
+      targetState = targetNode.subgraph || {
+        nodes: [],
+        connections: [],
+        stickyNotes: [],
+        nodeGroups: [],
+        viewState: this.fullGraphState.viewState,
+      };
     }
 
     this.viewStore.navigateUpTo(graphId);
@@ -251,16 +255,16 @@ export class NodeEditorController {
   }
 
   private findNodeInFullState(nodeId: string): Node | undefined {
-    if (nodeId === 'root') return undefined;
+    if (nodeId === "root") return undefined;
     const find = (nodes: Node[]): Node | undefined => {
-        for (const node of nodes) {
-            if (node.id === nodeId) return node;
-            if (node.subgraph?.nodes) {
-                const found = find(node.subgraph.nodes);
-                if (found) return found;
-            }
+      for (const node of nodes) {
+        if (node.id === nodeId) return node;
+        if (node.subgraph?.nodes) {
+          const found = find(node.subgraph.nodes);
+          if (found) return found;
         }
-        return undefined;
+      }
+      return undefined;
     };
     return find(this.fullGraphState.nodes);
   }
@@ -297,7 +301,7 @@ export class NodeEditorController {
       this.toolbarWrapper.className = "toolbar-wrapper";
       this.canvasWrapper.appendChild(this.toolbarWrapper);
     }
-    
+
     this.overlayWrapper = document.createElement("div");
     this.overlayWrapper.className = "editor-overlay-container";
     this.canvasWrapper.appendChild(this.overlayWrapper);
@@ -369,13 +373,13 @@ export class NodeEditorController {
 
     // Cria um ponto no histórico para que a ação possa ser desfeita
     this.historyManager.push(this.getCurrentGraphState());
-    
+
     // Centraliza a visão no conteúdo recém-organizado
     this.zoomToFitContent();
 
     // Solicita uma nova renderização do canvas
     this.canvasEngine.requestRender();
-    this.events.emit('layoutApplied');
+    this.events.emit("layoutApplied");
   }
 
   private initializeToolbarButtons(): void {
@@ -476,21 +480,21 @@ export class NodeEditorController {
       iconName: "ph-frame-corners", // Ícone alternativo para "reset"
       action: () => this.viewStore.resetView(),
     });
-    
+
     // O nosso novo display de zoom, agora agrupado com os outros controlos de zoom
     this.toolbar.addDisplay({
-        id: 'zoom-display',
-        title: 'Current Zoom Level',
-        text: () => `${Math.round(this.viewStore.getState().scale * 100)}%`
+      id: "zoom-display",
+      title: "Current Zoom Level",
+      text: () => `${Math.round(this.viewStore.getState().scale * 100)}%`,
     });
 
     this.toolbar.addSeparator();
 
     // Botão de Auto-Layout
     this.toolbar.addButton({
-      id: 'auto-layout',
-      title: 'Auto-Layout (L)',
-      iconName: 'ph-graph', // Um ícone adequado
+      id: "auto-layout",
+      title: "Auto-Layout (L)",
+      iconName: "ph-graph", // Um ícone adequado
       action: () => this.autoLayout(),
     });
 
@@ -499,18 +503,38 @@ export class NodeEditorController {
   }
 
   private wireUpCoreEvents(): void {
-    this.nodeManager.on(EVENT_NODES_UPDATED, () => this.canvasEngine.requestRender());
-    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () => this.canvasEngine.requestRender());
-    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () => this.canvasEngine.requestRender());
-    this.nodeGroupManager.on(EVENT_GROUPS_UPDATED, () => this.canvasEngine.requestRender());
+    this.nodeManager.on(EVENT_NODES_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
+    this.connectionManager.on(EVENT_CONNECTIONS_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
+    this.stickyNoteManager.on(EVENT_NOTES_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
+    this.nodeGroupManager.on(EVENT_GROUPS_UPDATED, () =>
+      this.canvasEngine.requestRender()
+    );
 
     this.viewStore.on(EVENT_VIEW_CHANGED, () => this.toolbar?.refresh());
-    this.historyManager.on(EVENT_HISTORY_CHANGED, () => this.toolbar?.refresh());
-    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () => this.toolbar?.refresh());
-    this.selectionManager.on(EVENT_SELECTION_CHANGED, () => this.toolbar?.refresh());
-    
-    this.interactionManager.on("canvasContextMenu", this.handleCanvasContextMenu);
-    this.interactionManager.on("canvasDoubleClick", this.handleCanvasDoubleClick);
+    this.historyManager.on(EVENT_HISTORY_CHANGED, () =>
+      this.toolbar?.refresh()
+    );
+    this.clipboardManager.on(EVENT_CLIPBOARD_CHANGED, () =>
+      this.toolbar?.refresh()
+    );
+    this.selectionManager.on(EVENT_SELECTION_CHANGED, () =>
+      this.toolbar?.refresh()
+    );
+
+    this.interactionManager.on(
+      "canvasContextMenu",
+      this.handleCanvasContextMenu
+    );
+    this.interactionManager.on(
+      "canvasDoubleClick",
+      this.handleCanvasDoubleClick
+    );
 
     const makeHistoryCheckpoint = () => {
       if (!this.historyManager.isRestoringState()) {
@@ -533,12 +557,12 @@ export class NodeEditorController {
     this.stickyNoteManager.on("noteCreated", makeHistoryCheckpoint);
     this.stickyNoteManager.on("noteUpdated", makeHistoryCheckpoint);
     this.stickyNoteManager.on("noteDeleted", makeHistoryCheckpoint);
-    this.nodeGroupManager.on('groupCreated', makeHistoryCheckpoint);
-    this.nodeGroupManager.on('groupMoved', makeHistoryCheckpoint);
-    this.nodeGroupManager.on('groupResized', makeHistoryCheckpoint);
-    this.nodeGroupManager.on('groupDeleted', makeHistoryCheckpoint);
-    this.nodeGroupManager.on('nodeAddedToGroup', makeHistoryCheckpoint);
-    this.nodeGroupManager.on('nodeRemovedFromGroup', makeHistoryCheckpoint);
+    this.nodeGroupManager.on("groupCreated", makeHistoryCheckpoint);
+    this.nodeGroupManager.on("groupMoved", makeHistoryCheckpoint);
+    this.nodeGroupManager.on("groupResized", makeHistoryCheckpoint);
+    this.nodeGroupManager.on("groupDeleted", makeHistoryCheckpoint);
+    this.nodeGroupManager.on("nodeAddedToGroup", makeHistoryCheckpoint);
+    this.nodeGroupManager.on("nodeRemovedFromGroup", makeHistoryCheckpoint);
 
     let tooltipHoverTimeout: number | null = null;
     this.interactionManager.on(
@@ -597,9 +621,15 @@ export class NodeEditorController {
             };
           }
 
-          if (elementInfo.type === 'group' && elementInfo.item) {
+          if (elementInfo.type === "group" && elementInfo.item) {
             const g = this.nodeGroupManager.getGroup(elementInfo.item.id);
-            if (g) content = { title: g.title, type: 'Group', description: `${g.childNodes.size} nodes`, id: g.id.slice(0, 8) };
+            if (g)
+              content = {
+                title: g.title,
+                type: "Group",
+                description: `${g.childNodes.size} nodes`,
+                id: g.id.slice(0, 8),
+              };
           }
 
           if (content && this.tooltip)
@@ -614,25 +644,29 @@ export class NodeEditorController {
 
     this.quickAddMenu?.on("itemSelected", this.handleQuickAddItemChosen);
     this.contextMenu?.on("itemClicked", this.handleContextMenuItemClicked);
-    
+
     this.dndController.on("itemDropped", (item: Node | StickyNote) => {
       this.events.emit("itemAdded", item);
     });
-    
+
     this.configPanel?.on(EVENT_CONFIG_APPLIED, (item: ConfigurableItem) => {
       this.events.emit("itemConfigApplied", item);
       if (
         this.configPanel &&
         this.selectionManager.getSingleSelectedItem() === item.id
       ) {
-        const itemType = item.hasOwnProperty("childNodes") ? "group" :
-            (item.hasOwnProperty("fixedInputs") ? "node" : 
-            (item.hasOwnProperty("content") ? "stickyNote" : "connection"));
+        const itemType = item.hasOwnProperty("childNodes")
+          ? "group"
+          : item.hasOwnProperty("fixedInputs")
+          ? "node"
+          : item.hasOwnProperty("content")
+          ? "stickyNote"
+          : "connection";
         this.configPanel.show(item, itemType as ConfigurableItemType);
       }
       makeHistoryCheckpoint();
     });
-    
+
     this.configPanel?.on(EVENT_NODE_TEST_REQUESTED, (node: Node) => {
       this.events.emit("testNodeRequested", node);
     });
@@ -700,20 +734,38 @@ export class NodeEditorController {
       x: this.canvasEngine.getCanvasElement().width / 2,
       y: this.canvasEngine.getCanvasElement().height / 2,
     });
-    const itemsToPaste = this.clipboardManager.preparePasteData(pasteCenterCanvas);
+    const itemsToPaste =
+      this.clipboardManager.preparePasteData(pasteCenterCanvas);
     const newPastedItemIds: string[] = [];
-    
+
     itemsToPaste.forEach((clipboardItem) => {
       let pastedItem: Node | StickyNote | null = null;
       const { type, data } = clipboardItem;
       if (type === "node") {
         const nodeData = data as Node;
-        const definition = this.availableNodeDefinitions.find(def => def.id === nodeData.type);
+        const definition = this.availableNodeDefinitions.find(
+          (def) => def.id === nodeData.type
+        );
         if (definition) {
-          pastedItem = this.nodeManager.createNodeFromDefinition(definition, nodeData.position);
-          
-          nodeData.dynamicInputs?.forEach(p => this.nodeManager.addDynamicInputPort(pastedItem!.id, p.variableName || p.name, p.isHidden));
-          nodeData.dynamicOutputs?.forEach(p => this.nodeManager.addDynamicOutputPort(pastedItem!.id, p.name, p.outputValue || ''));
+          pastedItem = this.nodeManager.createNodeFromDefinition(
+            definition,
+            nodeData.position
+          );
+
+          nodeData.dynamicInputs?.forEach((p) =>
+            this.nodeManager.addDynamicInputPort(
+              pastedItem!.id,
+              p.variableName || p.name,
+              p.isHidden
+            )
+          );
+          nodeData.dynamicOutputs?.forEach((p) =>
+            this.nodeManager.addDynamicOutputPort(
+              pastedItem!.id,
+              p.name,
+              p.outputValue || ""
+            )
+          );
 
           this.nodeManager.updateNode(pastedItem.id, {
             title: nodeData.title,
@@ -725,7 +777,12 @@ export class NodeEditorController {
         }
       } else if (type === "stickyNote") {
         const noteData = data as StickyNote;
-        pastedItem = this.stickyNoteManager.createNote(noteData.position, noteData.content, noteData.width, noteData.height);
+        pastedItem = this.stickyNoteManager.createNote(
+          noteData.position,
+          noteData.content,
+          noteData.width,
+          noteData.height
+        );
         this.stickyNoteManager.updateNoteStyle(pastedItem.id, noteData.style);
       }
       if (pastedItem) newPastedItemIds.push(pastedItem.id);
@@ -750,21 +807,24 @@ export class NodeEditorController {
     const stickiesToDelete: string[] = [];
     const connectionsToDelete: string[] = [];
     const groupsToDelete: string[] = [];
-    
+
     selectedIds.forEach((id) => {
       if (this.nodeManager.getNode(id)) nodesToDelete.push(id);
       else if (this.stickyNoteManager.getNote(id)) stickiesToDelete.push(id);
-      else if (this.connectionManager.getConnection(id)) connectionsToDelete.push(id);
+      else if (this.connectionManager.getConnection(id))
+        connectionsToDelete.push(id);
       else if (this.nodeGroupManager.getGroup(id)) groupsToDelete.push(id);
     });
 
-    if (connectionsToDelete.length > 0) this.connectionManager.deleteConnections(connectionsToDelete);
+    if (connectionsToDelete.length > 0)
+      this.connectionManager.deleteConnections(connectionsToDelete);
     if (nodesToDelete.length > 0) this.nodeManager.deleteNodes(nodesToDelete);
-    if (stickiesToDelete.length > 0) this.stickyNoteManager.deleteNotes(stickiesToDelete);
+    if (stickiesToDelete.length > 0)
+      this.stickyNoteManager.deleteNotes(stickiesToDelete);
     if (groupsToDelete.length > 0) {
-        groupsToDelete.forEach(id => this.nodeGroupManager.deleteGroup(id));
+      groupsToDelete.forEach((id) => this.nodeGroupManager.deleteGroup(id));
     }
-    
+
     this.selectionManager.clearSelection();
     this.events.emit("itemsDeleted", selectedIds);
     this.canvasEngine.requestRender();
@@ -790,7 +850,10 @@ export class NodeEditorController {
     const allNodeIds = this.nodeManager.getNodes().map((n) => n.id);
     const allStickyIds = this.stickyNoteManager.getNotes().map((s) => s.id);
     const allGroupIds = this.nodeGroupManager.getGroups().map((g) => g.id);
-    this.selectionManager.selectItems([...allNodeIds, ...allStickyIds, ...allGroupIds], false);
+    this.selectionManager.selectItems(
+      [...allNodeIds, ...allStickyIds, ...allGroupIds],
+      false
+    );
     this.canvasEngine.requestRender();
   };
 
@@ -831,8 +894,7 @@ export class NodeEditorController {
       (iElem.type === "node" ||
         iElem.type === "stickyNote" ||
         iElem.type === "connection" ||
-        iElem.type === "group" // NEW
-        )
+        iElem.type === "group") // NEW
     ) {
       this.selectionManager.selectItem(iElem.item.id, false);
     } else if (
@@ -859,34 +921,44 @@ export class NodeEditorController {
     const selCount = this.selectionManager.getSelectionCount();
 
     if (selCount > 0) {
-      const selectedNodes = this.selectionManager.getSelectedItems()
-          .map(id => this.nodeManager.getNode(id))
-          .filter((n): n is Node => !!n);
-          
-      if (selectedNodes.length > 0) {
-          items.push({
-              id: 'group-selection',
-              label: `Group ${selectedNodes.length} Nodes`,
-              iconName: 'ph-selection-plus',
-              action: () => this.nodeGroupManager.createGroup(selectedNodes),
-              separatorBefore: true
-          });
+      const selectedNodes = this.selectionManager
+        .getSelectedItems()
+        .map((id) => this.nodeManager.getNode(id))
+        .filter((n): n is Node => !!n);
+
+      if (selectedNodes.length > 1) {
+        items.push({
+          id: "group-selection",
+          label: `Group ${selectedNodes.length} Nodes`,
+          iconName: "ph-selection-plus",
+          action: () => {
+            const newGroup = this.nodeGroupManager.createGroup(selectedNodes);
+            if (newGroup) {
+              this.selectionManager.selectItem(newGroup.id, false);
+            }
+          },
+          separatorBefore: true,
+        });
       }
     }
-    
+
     // NEW: Actions for when a group is right-clicked
-    if (targetType === 'group' && targetId) {
-        const group = this.nodeGroupManager.getGroup(targetId);
-        if (group) {
-            items.push({
-                id: 'config-group', label: `Configure Group '${group.title}'`, iconName: 'ph-paint-brush',
-                action: () => this.configPanel?.show(group, "group"),
-            });
-            items.push({
-                id: 'ungroup', label: 'Ungroup', iconName: 'ph-selection-slash',
-                action: () => this.nodeGroupManager.deleteGroup(targetId, false)
-            });
-        }
+    if (targetType === "group" && targetId) {
+      const group = this.nodeGroupManager.getGroup(targetId);
+      if (group) {
+        items.push({
+          id: "config-group",
+          label: `Configure Group '${group.title}'`,
+          iconName: "ph-paint-brush",
+          action: () => this.configPanel?.show(group, "group"),
+        });
+        items.push({
+          id: "ungroup",
+          label: "Ungroup",
+          iconName: "ph-selection-slash",
+          action: () => this.nodeGroupManager.deleteGroup(targetId, false),
+        });
+      }
     }
 
     if (targetType === "node" && targetId) {
@@ -962,7 +1034,9 @@ export class NodeEditorController {
         });
     }
     if (selCount > 0) {
-      let deleteLabel = `Delete ${selCount > 1 ? `${selCount} Items` : "Selected"}`;
+      let deleteLabel = `Delete ${
+        selCount > 1 ? `${selCount} Items` : "Selected"
+      }`;
       if (
         selCount === 1 &&
         targetId &&
@@ -991,9 +1065,12 @@ export class NodeEditorController {
     }
   }
 
-  private handleContextMenuItemClicked = (actionId: string, context?: ContextMenuContext): void => {
+  private handleContextMenuItemClicked = (
+    actionId: string,
+    context?: ContextMenuContext
+  ): void => {
     this.events.emit("contextActionTriggered", actionId, context);
-  }
+  };
 
   private handleCanvasDoubleClick = (e: CanvasPointerEvent): void => {
     const iElem = this.interactionManager.getInteractiveElementAtPoint(
@@ -1037,9 +1114,9 @@ export class NodeEditorController {
   public async saveGraphToLocalStorage(): Promise<void> {
     const currentGraphId = this.viewStore.getCurrentGraphId();
     const stateToSave = this.getCurrentGraphState();
-  
+
     // Atualizar o estado correto no grafo completo antes de salvar
-    if (currentGraphId === 'root') {
+    if (currentGraphId === "root") {
       this.fullGraphState = stateToSave;
     } else {
       const parentNode = this.findNodeInFullState(currentGraphId);
@@ -1047,7 +1124,7 @@ export class NodeEditorController {
         parentNode.subgraph = stateToSave;
       }
     }
-  
+
     await this.platformDataService.saveGraph(this.fullGraphState);
   }
 
@@ -1055,7 +1132,7 @@ export class NodeEditorController {
     const loadedState = await this.platformDataService.loadGraph();
     if (loadedState) {
       this.fullGraphState = JSON.parse(JSON.stringify(loadedState));
-      this.viewStore.navigateUpTo('root'); // Resetar a navegação para a raiz
+      this.viewStore.navigateUpTo("root"); // Resetar a navegação para a raiz
       this.loadGraphState(this.fullGraphState, true);
       return true;
     }
@@ -1065,7 +1142,7 @@ export class NodeEditorController {
   public getLocalStorageKey(): string {
     return LOCAL_STORAGE_GRAPH_KEY;
   }
-  
+
   public async clearGraph(): Promise<void> {
     this.loadGraphState(
       {
@@ -1091,35 +1168,39 @@ export class NodeEditorController {
     return JSON.parse(JSON.stringify(pureState));
   }
 
-  private loadGraphState(graphState: GraphState, pushToHistory: boolean = true, saveToFullState: boolean = true): void {
+  private loadGraphState(
+    graphState: GraphState,
+    pushToHistory: boolean = true,
+    saveToFullState: boolean = true
+  ): void {
     this.selectionManager.clearSelection();
     this.nodeManager.loadNodes(graphState.nodes || []);
     this.connectionManager.loadConnections(graphState.connections || []);
     this.stickyNoteManager.loadNotes(graphState.stickyNotes || []);
     this.nodeGroupManager.loadGroups(graphState.nodeGroups || []);
-    
+
     if (graphState.viewState) {
-        this.viewStore.setState(graphState.viewState);
+      this.viewStore.setState(graphState.viewState);
     } else {
-        this.zoomToFitContent();
+      this.zoomToFitContent();
     }
-    
+
     if (saveToFullState) {
-        const currentGraphId = this.viewStore.getCurrentGraphId();
-        if(currentGraphId === 'root') {
-            this.fullGraphState = JSON.parse(JSON.stringify(graphState));
-        } else {
-             const parentNode = this.findNodeInFullState(currentGraphId);
-             if(parentNode) {
-                parentNode.subgraph = this.getCurrentGraphState();
-             }
+      const currentGraphId = this.viewStore.getCurrentGraphId();
+      if (currentGraphId === "root") {
+        this.fullGraphState = JSON.parse(JSON.stringify(graphState));
+      } else {
+        const parentNode = this.findNodeInFullState(currentGraphId);
+        if (parentNode) {
+          parentNode.subgraph = this.getCurrentGraphState();
         }
+      }
     }
-    
+
     if (pushToHistory && !this.historyManager.isRestoringState()) {
-        this.historyManager.push(this.getCurrentGraphState());
+      this.historyManager.push(this.getCurrentGraphState());
     }
-    
+
     this.toolbar?.refresh();
     this.canvasEngine.requestRender();
     this.events.emit("graphLoaded", graphState);
