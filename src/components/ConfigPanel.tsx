@@ -52,7 +52,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             initialTab = 'style';
         } else if (type === 'connection') {
             const conn = item as Connection;
-            // MODIFIED: Inclui os novos estilos no estado do formulário
             initialTabData = { ...conn.data, ...conn.style }; 
             initialTab = 'general';
         } else if (type === 'stickyNote') {
@@ -275,6 +274,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             },
             { id: 'color', tabId: 'appearance', type: 'color', label: 'Line Color', defaultValue: conn.style?.color || '#FFFFFF' },
             { id: 'animated', tabId: 'appearance', type: 'boolean', label: 'Animate Flow', defaultValue: !!conn.style?.animated },
+            { id: 'animatedGradient', tabId: 'appearance', type: 'boolean', label: 'Use Gradient in Animation', defaultValue: !!conn.style?.animatedGradient },
         ]
     };
   } else if (itemType === 'stickyNote') {
@@ -330,7 +330,15 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
 
         <div className="config-panel-content">
           {allParameters
-            .filter((param: any) => !allTabs.length || !param.tabId || param.tabId === activeTab)
+            .filter((param: any) => {
+                if (!allTabs.length || !param.tabId || param.tabId === activeTab) {
+                    if (itemType === 'connection' && param.id === 'animatedGradient' && !formData.animated) {
+                        return false;
+                    }
+                    return true;
+                }
+                return false;
+            })
             .map((param: any) => (
               <div key={param.id} className="form-group">
                 <label htmlFor={param.id}>{param.label}</label>

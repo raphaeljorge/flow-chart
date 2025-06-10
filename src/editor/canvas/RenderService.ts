@@ -44,7 +44,7 @@ export class RenderService {
 
     if (viewStore.getState().preferences.connectionAppearance.animateFlow) {
       this.startAnimationLoop();
-  }
+    }
   }
 
   private handleViewChange = (newState: ViewState, oldState?: ViewState) => {
@@ -60,7 +60,7 @@ export class RenderService {
   }
 
   private startAnimationLoop = () => {
-    if (this.animationFrameId) return; // Já está rodando
+    if (this.animationFrameId) return; // Already running
     const animate = () => {
         this.canvasEngine.requestRender();
         this.animationFrameId = requestAnimationFrame(animate);
@@ -201,12 +201,8 @@ export class RenderService {
     const isSelected = this.selectionManager.isSelected(node.id);
     const cornerRadius = 8;
 
-    // Use a cor do nó ou um fallback padrão
-    const nodeCustomColor = node.color || this.themeColors.nodeBorder; // Fallback para a cor da borda do tema se não houver cor customizada
+    const nodeCustomColor = node.color || this.themeColors.nodeBorder;
 
-    // ETAPA 1: Desenhar os preenchimentos de fundo (sem bordas)
-
-    // Fundo do corpo principal (retângulo arredondado completo)
     ctx.fillStyle = this.themeColors.nodeBackground;
     ctx.beginPath();
     ctx.moveTo(x + cornerRadius, y);
@@ -221,7 +217,6 @@ export class RenderService {
     ctx.closePath();
     ctx.fill();
 
-    // Fundo do cabeçalho (desenhado por cima do fundo do corpo)
     ctx.fillStyle = this.themeColors.nodeHeaderBackground;
     ctx.beginPath();
     ctx.moveTo(x, y + headerHeight);
@@ -233,15 +228,11 @@ export class RenderService {
     ctx.closePath();
     ctx.fill();
 
-    // ETAPA 2: Desenhar TODAS as bordas com a nova lógica de seleção
-    // A COR da borda é sempre a cor do nó.
     ctx.strokeStyle = nodeCustomColor;
-    // A ESPESSURA da borda aumenta se estiver selecionado.
     ctx.lineWidth = (isSelected ? 2.5 : 1.5) / viewState.scale;
     
     ctx.beginPath();
     
-    // Caminho para a borda externa completa
     ctx.moveTo(x + cornerRadius, y);
     ctx.lineTo(x + width - cornerRadius, y);
     ctx.arcTo(x + width, y, x + width, y + cornerRadius, cornerRadius);
@@ -253,14 +244,8 @@ export class RenderService {
     ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius);
     ctx.closePath();
     
-    // Adiciona a linha de separação ao mesmo caminho
-    // ctx.moveTo(x, y + headerHeight);
-    // ctx.lineTo(x + width, y + headerHeight);
-
-    // Executa o comando 'stroke' uma única vez para desenhar tudo com o mesmo estilo
     ctx.stroke();
 
-    // ETAPA 3: Desenhar o conteúdo do cabeçalho (permanece igual)
     const fontFamily = getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily;
     
     if (node.icon) {
@@ -290,19 +275,6 @@ export class RenderService {
     ctx.textBaseline = 'middle';
     ctx.fillText(node.title, x + (node.icon ? 44 : 16), y + headerHeight / 2);
 
-    // if (node.status) {
-    //   const statusColorMap: Record<string, string> = {
-    //     success: this.themeColors.statusSuccess, error: this.themeColors.statusError,
-    //     running: this.themeColors.statusRunning, warning: this.themeColors.statusWarning,
-    //     unsaved: this.themeColors.statusUnsaved
-    //   };
-    //   ctx.fillStyle = statusColorMap[node.status] || '#888';
-    //   ctx.beginPath();
-    //   ctx.arc(x + width - 16, y + headerHeight / 2, 5, 0, Math.PI * 2);
-    //   ctx.fill();
-    // }
-
-    // ID do Nó
     ctx.fillStyle = this.themeColors.nodeIdText;
     ctx.font = `10px ${fontFamily}`;
     ctx.textAlign = 'left';
@@ -313,10 +285,8 @@ export class RenderService {
   private drawPort(ctx: CanvasRenderingContext2D, port: NodePort, canvasX: number, canvasY: number, viewState: ViewState, isHighlighted: boolean = false): void {
     if (port.isHidden) return;
 
-    // USA O TAMANHO CONSTANTE DA PORTA. A escala global do canvas cuidará do redimensionamento.
     const portRadius = NODE_PORT_SIZE / 2;
 
-    // A espessura da borda da porta continua sendo ajustada para parecer sempre nítida na tela.
     ctx.lineWidth = (isHighlighted ? 2 : 1.5) / viewState.scale;
 
     const parentNode = this.nodeManager.getNode(port.nodeId);
@@ -334,7 +304,6 @@ export class RenderService {
     ctx.fillStyle = fillColor;
 
     ctx.beginPath();
-    // O raio do arco agora usa o valor não escalado.
     ctx.arc(canvasX, canvasY, portRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke()
@@ -346,12 +315,10 @@ export class RenderService {
     const width = note.width;
     const height = note.height;
     const isSelected = this.selectionManager.isSelected(note.id);
-    const cornerRadius = 8; // Raio dos cantos para sticky note
+    const cornerRadius = 8;
 
     ctx.fillStyle = note.style.backgroundColor || this.themeColors.stickyNoteDefaultBackground;
-    // A COR da borda é sempre a padrão da anotação.
     ctx.strokeStyle = this.themeColors.stickyNoteBorder || '#3a3a3a';
-    // A ESPESSURA aumenta se estiver selecionado.
     ctx.lineWidth = (isSelected ? 2.5 : 1) / viewState.scale;
 
     ctx.beginPath();
@@ -368,7 +335,6 @@ export class RenderService {
     ctx.fill();
     ctx.stroke();
 
-    // Content
     ctx.fillStyle = note.style.textColor || this.themeColors.stickyNoteDefaultText;
     const fontSize = (note.style.fontSize || 14);
     ctx.font = `${fontSize}px ${getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily}`;
@@ -442,9 +408,8 @@ export class RenderService {
 
     ctx.beginPath();
     
-    this.setupConnectionStyle(ctx, conn, viewState, isGhosted, isSelected);
+    this.setupConnectionStyle(ctx, conn, viewState, isGhosted, isSelected, p0, p3);
 
-    // --- Lógica de Roteamento ---
     const routingMode = viewState.preferences.connectionRouting;
     let midPoint;
     switch (routingMode) {
@@ -466,41 +431,100 @@ export class RenderService {
         this.drawConnectionLabel(ctx, conn.data.label, midPoint);
     }
 
-    // Reseta o estilo da linha para não afetar outras renderizações
     ctx.setLineDash([]);
   }
 
-  private setupConnectionStyle(ctx: CanvasRenderingContext2D, conn: Connection, viewState: ViewState, isGhosted: boolean, isSelected: boolean): void {
+  private lightenColor(hex: string, percent: number): string {
+    const p = Math.min(100, Math.max(0, percent)) / 100;
+
+    if (hex.startsWith('#')) {
+        hex = hex.slice(1);
+    }
+
+    const num = parseInt(hex, 16);
+    let r = (num >> 16);
+    let g = (num >> 8) & 0x00FF;
+    let b = num & 0x0000FF;
+
+    r = Math.round(r + (255 - r) * p);
+    g = Math.round(g + (255 - g) * p);
+    b = Math.round(b + (255 - b) * p);
+
+    const toHex = (c: number) => ('00' + c.toString(16)).slice(-2);
+    
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  
+  private hexToRgb(hex: string): { r: number, g: number, b: number } {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 }; // Default to black on failure
+  }
+
+  private interpolate(start: number, end: number, factor: number): number {
+      return Math.round(start + (end - start) * factor);
+  }
+
+  private setupConnectionStyle(ctx: CanvasRenderingContext2D, conn: Connection, viewState: ViewState, isGhosted: boolean, isSelected: boolean, p0: Point, p3: Point): void {
     if (isGhosted) {
-      ctx.strokeStyle = this.themeColors.connectionGhosted;
-      ctx.lineWidth = 1 / viewState.scale;
-      ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
-      return;
+        ctx.strokeStyle = this.themeColors.connectionGhosted;
+        ctx.lineWidth = 1 / viewState.scale;
+        ctx.setLineDash([3 / viewState.scale, 3 / viewState.scale]);
+        return;
     }
     
     const lineStyle = conn.style?.lineStyle || 'solid';
     const isAnimated = viewState.preferences.connectionAppearance.animateFlow && conn.style?.animated;
+    const useGradient = isAnimated && conn.style?.animatedGradient;
 
-    // Define o estilo da linha (tracejado, pontilhado)
-    let lineDash: number[] = [];
-    if (lineStyle === 'dashed' || (isAnimated && lineStyle !== 'dotted')) {
-        lineDash = [10 / viewState.scale, 8 / viewState.scale];
-    } else if (lineStyle === 'dotted') {
-        lineDash = [2 / viewState.scale, 6 / viewState.scale];
-    }
-    ctx.setLineDash(lineDash);
+    const baseColor = conn.style?.color || this.themeColors.connectionDefault;
+    ctx.lineWidth = (isSelected ? 3 : 2) / viewState.scale;
     
-    // Aplica a animação de fluxo
-    if (isAnimated) {
-      const time = Date.now() / 50;
-      const totalDashLength = (lineDash[0] || 0) + (lineDash[1] || 0);
-      ctx.lineDashOffset = -time % totalDashLength;
+    if (useGradient) {
+        const highlightColor = this.lightenColor(baseColor, 90);
+        
+        const gradient = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+        
+        const cycles = 3; 
+        const speed = -2;
+        const time = Date.now() / 500;
+        
+        for (let i = 0; i <= 20; i++) {
+            const pos = i / 20;
+            const sineInput = (pos * cycles * Math.PI * 2) + (time * speed);
+            const colorIntensity = (Math.sin(sineInput) + 1) / 2;
+            
+            const r = this.interpolate(this.hexToRgb(baseColor).r, this.hexToRgb(highlightColor).r, colorIntensity);
+            const g = this.interpolate(this.hexToRgb(baseColor).g, this.hexToRgb(highlightColor).g, colorIntensity);
+            const b = this.interpolate(this.hexToRgb(baseColor).b, this.hexToRgb(highlightColor).b, colorIntensity);
+
+            gradient.addColorStop(pos, `rgb(${r},${g},${b})`);
+        }
+        
+        ctx.strokeStyle = gradient;
+        ctx.setLineDash([]);
+
     } else {
-        ctx.lineDashOffset = 0;
+        ctx.strokeStyle = baseColor;
+        let lineDash: number[] = [];
+        if (lineStyle === 'dashed' || (isAnimated && lineStyle !== 'dotted')) {
+            lineDash = [10 / viewState.scale, 8 / viewState.scale];
+        } else if (lineStyle === 'dotted') {
+            lineDash = [2 / viewState.scale, 6 / viewState.scale];
+        }
+        ctx.setLineDash(lineDash);
+        
+        if (isAnimated) {
+            const time = Date.now() / 50;
+            const totalDashLength = (lineDash.length > 0 ? lineDash.reduce((a, b) => a + b) : 18);
+            ctx.lineDashOffset = -time % totalDashLength;
+        } else {
+            ctx.lineDashOffset = 0;
+        }
     }
-    
-    ctx.strokeStyle = conn.style?.color || this.themeColors.connectionDefault;
-    ctx.lineWidth = (isSelected ? 3 : 1.5) / viewState.scale;
   }
 
   private drawStraightPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): Point {
@@ -515,7 +539,6 @@ export class RenderService {
     const cp1x = p0.x + offset; const cp1y = p0.y;
     const cp2x = p3.x - offset; const cp2y = p3.y;
     ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y);
-     // Calculate the midpoint of the Bezier curve
     const t = 0.5;
     const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * cp1x + 3 * (1 - t) * Math.pow(t, 2) * cp2x + Math.pow(t, 3) * p3.x;
     const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * cp1y + 3 * (1 - t) * Math.pow(t, 2) * cp2y + Math.pow(t, 3) * p3.y;
@@ -526,9 +549,9 @@ export class RenderService {
   private drawOrthogonalPath(ctx: CanvasRenderingContext2D, p0: Point, p3: Point): Point {
     const midX = (p0.x + p3.x) / 2;
     ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(midX, p0.y); // Primeiro segmento horizontal
-    ctx.lineTo(midX, p3.y);  // Segmento vertical
-    ctx.lineTo(p3.x, p3.y);  // Segundo segmento horizontal
+    ctx.lineTo(midX, p0.y);
+    ctx.lineTo(midX, p3.y);
+    ctx.lineTo(p3.x, p3.y);
     return { x: midX, y: (p0.y + p3.y) / 2 };
   }
   

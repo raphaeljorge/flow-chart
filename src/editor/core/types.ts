@@ -130,12 +130,12 @@ export interface Connection {
   targetNodeId: string;
   data?: {
     label?: string;
-    color?: string;
   };
   style?: {
     color?: string;
     lineStyle?: LineStyle;
     animated?: boolean;
+    animatedGradient?: boolean;
   }
 }
 
