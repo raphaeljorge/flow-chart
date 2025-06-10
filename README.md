@@ -211,7 +211,7 @@ node-based-software-builder/
 
 - ✅ **Connection labels/annotations**
 
-- ❌ **Connection styles** (dashed, dotted, colored by type)
+- ✅ **Connection styles** (dashed, dotted, colored by type)
 
 
 
