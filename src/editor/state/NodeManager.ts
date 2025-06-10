@@ -259,6 +259,18 @@ export class NodeManager {
     return port;
   }
 
+  /**
+   * Adiciona um objeto Node pré-construído diretamente ao gerenciador.
+   * Usado para operações complexas como a conversão de grupo.
+   * @param node O objeto Node a ser adicionado.
+   * @internal
+   */
+  public _addNodeObject(node: Node): void {
+    if (!this.nodes.has(node.id)) {
+      this.nodes.set(node.id, node);
+    }
+  }
+
   public getPort(portId: string): NodePort | undefined {
     for (const node of this.nodes.values()) {
       const port = [...node.fixedInputs, ...node.fixedOutputs, ...node.dynamicInputs, ...node.dynamicOutputs]

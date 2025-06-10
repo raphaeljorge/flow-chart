@@ -1,4 +1,5 @@
 import { EventEmitter } from "eventemitter3";
+import { nanoid } from "nanoid";
 import {
   NodeEditorOptions,
   Node,
@@ -942,7 +943,7 @@ export class NodeEditorController {
       }
     }
 
-    // NEW: Actions for when a group is right-clicked
+    // Actions for when a group is right-clicked
     if (targetType === "group" && targetId) {
       const group = this.nodeGroupManager.getGroup(targetId);
       if (group) {
@@ -951,6 +952,12 @@ export class NodeEditorController {
           label: `Configure Group '${group.title}'`,
           iconName: "ph-paint-brush",
           action: () => this.configPanel?.show(group, "group"),
+        });
+        items.push({
+          id: "convert-to-composite",
+          label: "Convert to Composite Node",
+          iconName: "ph-stack", // Um ícone adequado
+          action: () => this.convertGroupToCompositeNode(targetId),
         });
         items.push({
           id: "ungroup",
@@ -1323,6 +1330,173 @@ export class NodeEditorController {
   public off(eventName: string, listener: (...args: any[]) => void): this {
     this.events.off(eventName, listener);
     return this;
+  }
+
+  public convertGroupToCompositeNode(groupId: string): void {
+    this.historyManager.beginTransaction();
+    try {
+      const group = this.nodeGroupManager.getGroup(groupId);
+      if (!group) {
+        this.historyManager.endTransaction();
+        return;
+      }
+  
+      const childNodeIds = new Set(group.childNodes);
+      if (childNodeIds.size === 0) {
+        this.historyManager.endTransaction();
+        return;
+      }
+
+      const childNodes = Array.from(childNodeIds).map(id => this.nodeManager.getNode(id)).filter(n => n) as Node[];
+      
+      // Calculate bounds of the group to normalize positions
+      let minX = Infinity, minY = Infinity;
+      childNodes.forEach(node => {
+        minX = Math.min(minX, node.position.x);
+        minY = Math.min(minY, node.position.y);
+      });
+  
+      // --- Lógica de Clonagem Segura ---
+      const cloneNode = (node: Node): Node => ({
+        ...node,
+        // Normalize position relative to group bounds and clear groupId
+        position: { 
+          x: node.position.x - minX + 40, 
+          y: node.position.y - minY + 40 
+        },
+        groupId: undefined, // Clear the groupId since it's no longer part of the original group
+        data: node.data ? JSON.parse(JSON.stringify(node.data)) : {},
+        config: node.config ? JSON.parse(JSON.stringify(node.config)) : undefined,
+        fixedInputs: node.fixedInputs.map(p => ({ ...p, connections: [...p.connections] })),
+        fixedOutputs: node.fixedOutputs.map(p => ({ ...p, connections: [...p.connections] })),
+        dynamicInputs: node.dynamicInputs.map(p => ({ ...p, connections: [...p.connections] })),
+        dynamicOutputs: node.dynamicOutputs.map(p => ({ ...p, connections: [...p.connections] })),
+        subgraph: node.subgraph ? JSON.parse(JSON.stringify(node.subgraph)) : undefined,
+      });
+  
+      const cloneConnection = (conn: Connection): Connection => ({
+        ...conn,
+        data: conn.data ? { ...conn.data } : undefined,
+        style: conn.style ? { ...conn.style } : undefined,
+      });
+      // --- Fim da Lógica de Clonagem Segura ---
+  
+      const allConnections = this.connectionManager.getConnections();
+      const internalConnections: Connection[] = [];
+      const externalConnections: Connection[] = [];
+  
+      allConnections.forEach(c => {
+        const sourceInGroup = childNodeIds.has(c.sourceNodeId);
+        const targetInGroup = childNodeIds.has(c.targetNodeId);
+        if (sourceInGroup && targetInGroup) {
+          internalConnections.push(c);
+        } else if (sourceInGroup !== targetInGroup) {
+          externalConnections.push(c);
+        }
+      });
+
+      // Create composite node ID first to use in navigation path
+      const compositeNodeId = nanoid();
+  
+      const subgraphState: GraphState = {
+        nodes: childNodes.map(cloneNode), // Usando a clonagem segura
+        connections: internalConnections.map(cloneConnection), // Usando a clonagem segura
+        stickyNotes: [],
+        nodeGroups: [],
+        viewState: { 
+          ...this.viewStore.getState(), 
+          offset: { x: 0, y: 0 }, 
+          scale: 1, 
+          navigationPath: [...this.viewStore.getState().navigationPath, { graphId: compositeNodeId, label: group.title }]
+        }
+      };
+  
+      const compositeNode: Node = {
+        id: compositeNodeId,
+        title: group.title,
+        type: 'composite-node',
+        description: 'A composite node containing a subgraph.',
+        position: { ...group.position },
+        width: group.width,
+        height: group.height,
+        color: group.style.borderColor,
+        icon: 'ph-stack',
+        isComposite: true,
+        subgraph: subgraphState,
+        fixedInputs: [],
+        fixedOutputs: [],
+        dynamicInputs: [],
+        dynamicOutputs: [],
+        data: {}
+      };
+  
+      const portMap = new Map<string, string>();
+      
+      externalConnections.forEach(conn => {
+        if (childNodeIds.has(conn.targetNodeId)) {
+          const internalPortId = conn.targetPortId;
+          if (!portMap.has(internalPortId)) {
+            const internalPort = this.nodeManager.getPort(internalPortId);
+            if (internalPort) {
+              const newPort: NodePort = { id: nanoid(), nodeId: compositeNode.id, name: internalPort.name, type: 'input', connections: [], isDynamic: false };
+              compositeNode.fixedInputs.push(newPort);
+              portMap.set(internalPortId, newPort.id);
+            }
+          }
+        } else if (childNodeIds.has(conn.sourceNodeId)) {
+          const internalPortId = conn.sourcePortId;
+          if (!portMap.has(internalPortId)) {
+            const internalPort = this.nodeManager.getPort(internalPortId);
+            if (internalPort) {
+              const newPort: NodePort = { id: nanoid(), nodeId: compositeNode.id, name: internalPort.name, type: 'output', connections: [], isDynamic: false };
+              compositeNode.fixedOutputs.push(newPort);
+              portMap.set(internalPortId, newPort.id);
+            }
+          }
+        }
+      });
+      
+      // First delete the child nodes and group
+      this.nodeManager.deleteNodes(Array.from(childNodeIds));
+      this.nodeGroupManager.deleteGroup(groupId, false);
+      
+      // Then add the composite node
+      this.nodeManager._addNodeObject(compositeNode);
+      
+      // Recreate external connections
+      externalConnections.forEach(conn => {
+        const newSourceId = portMap.get(conn.sourcePortId) || conn.sourcePortId;
+        const newTargetId = portMap.get(conn.targetPortId) || conn.targetPortId;
+        if (this.nodeManager.getPort(newSourceId) && this.nodeManager.getPort(newTargetId)) {
+          this.connectionManager.createConnection(newSourceId, newTargetId);
+        }
+      });
+      
+      // Update the current graph state in fullGraphState to include the new composite node
+      const currentGraphId = this.viewStore.getCurrentGraphId();
+      if (currentGraphId === "root") {
+        // We're at the root level, update fullGraphState directly
+        const currentState = this.getCurrentGraphState();
+        this.fullGraphState = currentState;
+      } else {
+        // We're in a subgraph, find the parent node and update its subgraph
+        const parentNode = this.findNodeInFullState(currentGraphId);
+        if (parentNode) {
+          parentNode.subgraph = this.getCurrentGraphState();
+        }
+      }
+      
+      // Manually trigger events since _addNodeObject doesn't
+      this.nodeManager['events'].emit('nodeCreated', compositeNode);
+      this.nodeManager['events'].emit(EVENT_NODES_UPDATED, this.nodeManager.getNodes());
+  
+      this.selectionManager.selectItem(compositeNode.id, false);
+      this.events.emit('groupConverted', { groupId, compositeNodeId: compositeNode.id });
+
+    } finally {
+      this.historyManager.endTransaction(this.getCurrentGraphState());
+      this.canvasEngine.requestRender();
+    }
   }
 
   public destroy(): void {

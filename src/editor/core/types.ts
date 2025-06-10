@@ -48,6 +48,7 @@ export interface Node {
   color?: string;
   groupId?: string;
   subgraph?: GraphState;
+  isComposite?: boolean;
 }
 
 export interface StickyNote {
