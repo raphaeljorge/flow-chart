@@ -964,6 +964,23 @@ export class NodeEditorController {
     if (targetType === "node" && targetId) {
       const node = this.nodeManager.getNode(targetId);
       if (node) {
+        if (node.groupId) {
+          const group = this.nodeGroupManager.getGroup(node.groupId);
+          if (group) {
+            items.push({
+              id: "ungroup-node",
+              label: `Ungroup from '${group.title}'`,
+              iconName: "ph-selection-slash",
+              action: () =>
+                this.nodeGroupManager.removeNodeFromGroup(
+                  node.groupId!,
+                  node.id
+                ),
+              separatorBefore: items.length > 0,
+            });
+          }
+        }
+
         items.push({
           id: "config-node",
           label: `Configure '${node.title}'`,
