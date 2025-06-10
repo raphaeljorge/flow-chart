@@ -24,6 +24,7 @@ export class RenderService {
   private hoveredPortIdIdle: string | null = null;
   private themeColors: Record<string, string> = {};
   private animationFrameId: number | null = null;
+  private viewStore: ViewStore;
 
   constructor(
     private canvasEngine: CanvasEngine,
@@ -35,12 +36,17 @@ export class RenderService {
     private interactionManager: InteractionManager,
     viewStore: ViewStore,
   ) {
+    this.viewStore = viewStore;
     this.canvasEngine.on(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
     this.interactionManager.on('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.on('portHoverChanged', this.handlePortHoverIdleChanged);
     this.loadThemeColors();
     
     viewStore.on(EVENT_VIEW_CHANGED, this.handleViewChange);
+    
+    // Listen for connection updates to restart animations when needed
+    this.connectionManager.on('connectionUpdated', this.handleConnectionUpdated);
+    this.connectionManager.on('connectionCreated', this.handleConnectionUpdated);
 
     if (viewStore.getState().preferences.connectionAppearance.animateFlow) {
       this.startAnimationLoop();
@@ -59,12 +65,47 @@ export class RenderService {
     this.canvasEngine.requestRender();
   }
 
+  private handleConnectionUpdated = () => {
+    // Restart animation loop when connections are updated, in case new animations were added
+    const currentState = this.viewStore.getState();
+    if (currentState.preferences.connectionAppearance.animateFlow) {
+      this.startAnimationLoop();
+    }
+  }
+
   private startAnimationLoop = () => {
     if (this.animationFrameId) return; // Already running
-    const animate = () => {
-        this.canvasEngine.requestRender();
-        this.animationFrameId = requestAnimationFrame(animate);
+    
+    let lastFrameTime = 0;
+    const targetFPS = 60; // Target 60 FPS for smooth animation
+    const frameInterval = 1000 / targetFPS;
+    
+    const animate = (currentTime: number) => {
+        // Check if animation is still needed
+        const currentState = this.viewStore.getState();
+        if (!currentState.preferences.connectionAppearance.animateFlow) {
+            // Stop animation if global animation is disabled
+            this.animationFrameId = null;
+            return;
+        }
+        
+        const hasAnimatedConnections = this.connectionManager.getConnections().some(
+            conn => conn.style?.animated
+        );
+        
+        if (hasAnimatedConnections) {
+            // Throttle rendering to target FPS for better performance
+            if (currentTime - lastFrameTime >= frameInterval) {
+                this.canvasEngine.requestRender();
+                lastFrameTime = currentTime;
+            }
+            this.animationFrameId = requestAnimationFrame(animate);
+        } else {
+            // Stop animation if no animated connections
+            this.animationFrameId = null;
+        }
     };
+    
     this.animationFrameId = requestAnimationFrame(animate);
   }
 
@@ -434,38 +475,13 @@ export class RenderService {
     ctx.setLineDash([]);
   }
 
-  private lightenColor(hex: string, percent: number): string {
-    const p = Math.min(100, Math.max(0, percent)) / 100;
-
-    if (hex.startsWith('#')) {
-        hex = hex.slice(1);
-    }
-
-    const num = parseInt(hex, 16);
-    let r = (num >> 16);
-    let g = (num >> 8) & 0x00FF;
-    let b = num & 0x0000FF;
-
-    r = Math.round(r + (255 - r) * p);
-    g = Math.round(g + (255 - g) * p);
-    b = Math.round(b + (255 - b) * p);
-
-    const toHex = (c: number) => ('00' + c.toString(16)).slice(-2);
-    
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }
-  
   private hexToRgb(hex: string): { r: number, g: number, b: number } {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
         r: parseInt(result[1], 16),
         g: parseInt(result[2], 16),
         b: parseInt(result[3], 16)
-    } : { r: 0, g: 0, b: 0 }; // Default to black on failure
-  }
-
-  private interpolate(start: number, end: number, factor: number): number {
-      return Math.round(start + (end - start) * factor);
+    } : { r: 255, g: 255, b: 255 }; // Default to white on failure
   }
 
   private setupConnectionStyle(ctx: CanvasRenderingContext2D, conn: Connection, viewState: ViewState, isGhosted: boolean, isSelected: boolean, p0: Point, p3: Point): void {
@@ -478,48 +494,72 @@ export class RenderService {
     
     const lineStyle = conn.style?.lineStyle || 'solid';
     const isAnimated = viewState.preferences.connectionAppearance.animateFlow && conn.style?.animated;
-    const useGradient = isAnimated && conn.style?.animatedGradient;
 
     const baseColor = conn.style?.color || this.themeColors.connectionDefault;
     ctx.lineWidth = (isSelected ? 3 : 2) / viewState.scale;
     
-    if (useGradient) {
-        const highlightColor = this.lightenColor(baseColor, 90);
-        
+    if (isAnimated) {
+        // Create a gradient along the connection path for animated connections
         const gradient = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
         
-        const cycles = 3; 
-        const speed = -2;
-        const time = Date.now() / 500;
+        // Animation parameters
+        const pulseWidth = 0.25; // Width of the bright pulse (0-1)
+        const speed = 0.002; // Speed of animation (increased for more visible movement)
+        const time = Date.now() * speed;
+        const offset = (time % 1); // Current position of the pulse (0-1)
         
-        for (let i = 0; i <= 20; i++) {
-            const pos = i / 20;
-            const sineInput = (pos * cycles * Math.PI * 2) + (time * speed);
-            const colorIntensity = (Math.sin(sineInput) + 1) / 2;
+        // Parse base color to get RGB values
+        const baseRgb = this.hexToRgb(baseColor);
+        const brightRgb = { r: 255, g: 255, b: 255 }; // Bright white pulse
+        
+        // Create gradient stops for a moving pulse effect
+        const numStops = 20;
+        for (let i = 0; i <= numStops; i++) {
+            const pos = i / numStops;
             
-            const r = this.interpolate(this.hexToRgb(baseColor).r, this.hexToRgb(highlightColor).r, colorIntensity);
-            const g = this.interpolate(this.hexToRgb(baseColor).g, this.hexToRgb(highlightColor).g, colorIntensity);
-            const b = this.interpolate(this.hexToRgb(baseColor).b, this.hexToRgb(highlightColor).b, colorIntensity);
-
+            // Calculate distance from current pulse center
+            const distFromPulse = Math.abs(pos - offset);
+            const wrappedDist = Math.min(distFromPulse, Math.abs(pos - offset + 1), Math.abs(pos - offset - 1));
+            
+            // Create smooth pulse using cosine interpolation
+            let intensity = 0;
+            if (wrappedDist < pulseWidth) {
+                intensity = (1 + Math.cos(Math.PI * wrappedDist / pulseWidth)) / 2;
+            }
+            
+            // Interpolate between base color and bright color
+            const r = Math.round(baseRgb.r + (brightRgb.r - baseRgb.r) * intensity);
+            const g = Math.round(baseRgb.g + (brightRgb.g - baseRgb.g) * intensity);
+            const b = Math.round(baseRgb.b + (brightRgb.b - baseRgb.b) * intensity);
+            
             gradient.addColorStop(pos, `rgb(${r},${g},${b})`);
         }
         
         ctx.strokeStyle = gradient;
-        ctx.setLineDash([]);
+        
+        // Apply line style for animated connections
+        let lineDash: number[] = [];
+        if (lineStyle === 'dashed') {
+            lineDash = [10 / viewState.scale, 8 / viewState.scale];
+        } else if (lineStyle === 'dotted') {
+            lineDash = [2 / viewState.scale, 6 / viewState.scale];
+        }
+        ctx.setLineDash(lineDash);
 
     } else {
+        // Non-animated connections
         ctx.strokeStyle = baseColor;
         let lineDash: number[] = [];
-        if (lineStyle === 'dashed' || (isAnimated && lineStyle !== 'dotted')) {
+        if (lineStyle === 'dashed') {
             lineDash = [10 / viewState.scale, 8 / viewState.scale];
         } else if (lineStyle === 'dotted') {
             lineDash = [2 / viewState.scale, 6 / viewState.scale];
         }
         ctx.setLineDash(lineDash);
         
-        if (isAnimated) {
+        if (lineDash.length > 0) {
             const time = Date.now() / 50;
-            const totalDashLength = (lineDash.length > 0 ? lineDash.reduce((a, b) => a + b) : 18);
+            const totalDashLength = lineDash.reduce((a, b) => a + b, 0);
             ctx.lineDashOffset = -time % totalDashLength;
         } else {
             ctx.lineDashOffset = 0;
@@ -624,7 +664,7 @@ export class RenderService {
     if (this.hoveredPortIdIdle !== portId) {
       this.hoveredPortIdIdle = portId;
       this.canvasEngine.requestRender();
-    }
+        }
   }
 
   public destroy(): void {
@@ -632,5 +672,8 @@ export class RenderService {
     this.canvasEngine.off(EVENT_CANVAS_BEFORE_RENDER, this.handleBeforeRender);
     this.interactionManager.off('compatiblePortHoverChanged', this.handleCompatiblePortHoverChanged);
     this.interactionManager.off('portHoverChanged', this.handlePortHoverIdleChanged);
+    this.viewStore.off(EVENT_VIEW_CHANGED, this.handleViewChange);
+    this.connectionManager.off('connectionUpdated', this.handleConnectionUpdated);
+    this.connectionManager.off('connectionCreated', this.handleConnectionUpdated);
   }
 }

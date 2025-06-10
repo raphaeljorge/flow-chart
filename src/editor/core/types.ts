@@ -135,7 +135,6 @@ export interface Connection {
     color?: string;
     lineStyle?: LineStyle;
     animated?: boolean;
-    animatedGradient?: boolean;
   }
 }
 

@@ -155,11 +155,13 @@ const PreferencesPanel: React.FC<PreferencesPanelProps> = ({
                                     type="checkbox"
                                     id="animate-flow"
                                     checked={prefs.connectionAppearance.animateFlow}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
                                         handlePreferenceChange("connectionAppearance", {
                                             animateFlow: e.target.checked,
-                                        })
-                                    }
+                                        });
+                                        // Force a re-render to start/stop animations
+                                        controller?.canvasEngine.requestRender();
+                                    }}
                                 />
                                 <label htmlFor="animate-flow">Animate Data Flow</label>
                             </div>

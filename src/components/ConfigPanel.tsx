@@ -52,7 +52,12 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             initialTab = 'style';
         } else if (type === 'connection') {
             const conn = item as Connection;
-            initialTabData = { ...conn.data, ...conn.style }; 
+            initialTabData = { 
+              label: conn.data?.label || '',
+              color: conn.style?.color || '#FFFFFF',
+              lineStyle: conn.style?.lineStyle || 'solid',
+              animated: conn.style?.animated || false
+            };
             initialTab = 'general';
         } else if (type === 'stickyNote') {
             const note = item as StickyNote;
@@ -111,9 +116,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
     } else if (itemType === 'stickyNote') {
       controller.stickyNoteManager.updateNote(selectedItem.id, { style: newFormData });
     } else if (itemType === 'connection') {
-      const { label, ...styleData } = newFormData;
+      const { label, color, lineStyle, animated } = newFormData;
       controller.connectionManager.updateConnectionData(selectedItem.id, { label });
-      controller.connectionManager.updateConnectionStyle(selectedItem.id, styleData);
+      controller.connectionManager.updateConnectionStyle(selectedItem.id, { 
+        color, 
+        lineStyle, 
+        animated: !!animated
+      });
     }
   };
   
@@ -274,7 +283,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
             },
             { id: 'color', tabId: 'appearance', type: 'color', label: 'Line Color', defaultValue: conn.style?.color || '#FFFFFF' },
             { id: 'animated', tabId: 'appearance', type: 'boolean', label: 'Animate Flow', defaultValue: !!conn.style?.animated },
-            { id: 'animatedGradient', tabId: 'appearance', type: 'boolean', label: 'Use Gradient in Animation', defaultValue: !!conn.style?.animatedGradient },
         ]
     };
   } else if (itemType === 'stickyNote') {
@@ -332,9 +340,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ controller }) => {
           {allParameters
             .filter((param: any) => {
                 if (!allTabs.length || !param.tabId || param.tabId === activeTab) {
-                    if (itemType === 'connection' && param.id === 'animatedGradient' && !formData.animated) {
-                        return false;
-                    }
                     return true;
                 }
                 return false;
