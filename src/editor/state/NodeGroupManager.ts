@@ -5,7 +5,7 @@ import { NodeGroup, Node, Point, Rect } from "../core/types";
 import { NodeManager } from "./NodeManager";
 
 export const EVENT_GROUPS_UPDATED = "groupsUpdated";
-export const GROUP_HEADER_HEIGHT = 30;
+export const GROUP_HEADER_HEIGHT = 40;
 export const GROUP_PADDING = 20;
 
 export class NodeGroupManager {
@@ -32,6 +32,9 @@ export class NodeGroupManager {
       maxY = Math.max(maxY, node.position.y + node.height);
     });
 
+    const expandedWidth = maxX - minX + GROUP_PADDING * 2;
+    const expandedHeight = maxY - minY + GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT;
+
     const group: NodeGroup = {
       id: nanoid(),
       title,
@@ -39,8 +42,8 @@ export class NodeGroupManager {
         x: minX - GROUP_PADDING,
         y: minY - GROUP_PADDING - GROUP_HEADER_HEIGHT,
       },
-      width: maxX - minX + GROUP_PADDING * 2,
-      height: maxY - minY + GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT,
+      width: expandedWidth,
+      height: expandedHeight,
       childNodes: new Set(nodesToGroup.map((n) => n.id)),
       style: {
         backgroundColor: "rgba(148, 163, 184, 0.1)",
@@ -195,6 +198,8 @@ export class NodeGroupManager {
   private emitGroupsUpdated() {
     this.events.emit(EVENT_GROUPS_UPDATED, this.getGroups());
   }
+
+
 
   public destroy(): void {
     this.groups.clear();

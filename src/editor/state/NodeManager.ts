@@ -154,6 +154,18 @@ export class NodeManager {
     }
   }
 
+  public moveInternalNode(compositeNodeId: string, internalNodeId: string, newPosition: Point): void {
+    const compositeNode = this.nodes.get(compositeNodeId);
+    if (compositeNode && compositeNode.isComposite && compositeNode.subgraph) {
+      const internalNode = compositeNode.subgraph.nodes.find(n => n.id === internalNodeId);
+      if (internalNode) {
+        internalNode.position = newPosition;
+        this.emitNodesUpdated();
+        this.events.emit('nodeInternalMoved', { compositeNode, internalNode });
+      }
+    }
+  }
+
   public resizeNode(nodeId: string, newRect: Rect): void {
     const node = this.nodes.get(nodeId);
     if (node) {
@@ -352,6 +364,68 @@ export class NodeManager {
   public off(event: string, listener: (...args: any[]) => void): this {
     this.events.off(event, listener);
     return this;
+  }
+
+  public toggleCompositeNodeExpansion(nodeId: string): void {
+    const node = this.nodes.get(nodeId);
+    if (!node || !node.isComposite) return;
+
+    const wasExpanded = node.isExpanded || false;
+    node.isExpanded = !wasExpanded;
+
+    if (node.isExpanded) {
+      // Expanding: resize to fit internal nodes
+      if (node.expandedWidth && node.expandedHeight) {
+        node.width = node.expandedWidth;
+        node.height = node.expandedHeight;
+      } else if (node.subgraph && node.subgraph.nodes.length > 0) {
+        // Calculate size based on internal nodes
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        node.subgraph.nodes.forEach(subNode => {
+          minX = Math.min(minX, subNode.position.x);
+          minY = Math.min(minY, subNode.position.y);
+          maxX = Math.max(maxX, subNode.position.x + subNode.width);
+          maxY = Math.max(maxY, subNode.position.y + subNode.height);
+        });
+
+        if (minX !== Infinity) {
+          const padding = 20;
+          const headerHeight = 30;
+          node.width = Math.max(maxX - minX + padding * 2 + 20, 300); // Extra padding for visual space
+          node.height = Math.max(maxY - minY + padding * 2 + headerHeight + 20, 200); // Extra padding
+          node.expandedWidth = node.width;
+          node.expandedHeight = node.height;
+        } else {
+          // Fallback if no internal nodes
+          node.width = Math.max(node.width, 300);
+          node.height = Math.max(node.height, 200);
+          node.expandedWidth = node.width;
+          node.expandedHeight = node.height;
+        }
+      } else {
+        // Fallback if no subgraph
+        node.width = Math.max(node.width, 300);
+        node.height = Math.max(node.height, 200);
+        node.expandedWidth = node.width;
+        node.expandedHeight = node.height;
+      }
+    } else {
+      // Collapsing: resize to collapsed size
+      const collapsedWidth = node.collapsedWidth || 180;
+      const collapsedHeight = node.collapsedHeight || 120;
+      
+      node.width = collapsedWidth;
+      node.height = collapsedHeight;
+    }
+
+    this.emitNodesUpdated();
+    this.events.emit('compositeNodeToggled', node);
+  }
+
+  public isCompositeNodeExpanded(nodeId: string): boolean {
+    const node = this.nodes.get(nodeId);
+    return node?.isComposite ? (node.isExpanded || false) : false;
   }
 
   public destroy(): void {

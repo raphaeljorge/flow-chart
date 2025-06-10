@@ -49,6 +49,12 @@ export interface Node {
   groupId?: string;
   subgraph?: GraphState;
   isComposite?: boolean;
+  // Accordion properties for composite nodes
+  isExpanded?: boolean;
+  collapsedWidth?: number;
+  collapsedHeight?: number;
+  expandedWidth?: number;
+  expandedHeight?: number;
 }
 
 export interface StickyNote {

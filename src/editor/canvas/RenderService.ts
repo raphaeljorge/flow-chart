@@ -14,7 +14,7 @@ import {
   NodeGroup,
   Point,
   ConnectionRoutingMode,
-  LineStyle,
+
 } from "../core/types";
 import {
   NODE_HEADER_HEIGHT,
@@ -307,9 +307,26 @@ export class RenderService {
   private renderNodes(): void {
     if (!this.ctx || !this.currentViewState) return;
     const nodes = this.nodeManager.getNodes();
-    nodes.forEach((node) =>
-      this.drawNode(this.ctx!, node, this.currentViewState!)
-    );
+    
+    nodes.forEach((node) => {
+      this.drawNode(this.ctx!, node, this.currentViewState!);
+      
+      // If this is an expanded composite node, also render its internal nodes
+      if (node.isComposite && node.isExpanded && node.subgraph) {
+        node.subgraph.nodes.forEach((subNode) => {
+          // Adjust position relative to composite node with padding
+          const padding = 10;
+          const adjustedSubNode = {
+            ...subNode,
+            position: {
+              x: node.position.x + subNode.position.x + padding,
+              y: node.position.y + subNode.position.y + GROUP_HEADER_HEIGHT + padding
+            }
+          };
+          this.drawNode(this.ctx!, adjustedSubNode, this.currentViewState!);
+        });
+      }
+    });
   }
 
   private renderStickyNotes(): void {
@@ -464,12 +481,13 @@ export class RenderService {
       width,
       height,
       title,
+      isExpanded = false,
     } = node;
     const isSelected = this.selectionManager.isSelected(node.id);
-    const cornerRadius = 12; // Estilo do grupo
-    const headerHeight = GROUP_HEADER_HEIGHT; // Estilo do grupo
+    const cornerRadius = 12;
+    const headerHeight = GROUP_HEADER_HEIGHT;
 
-    // Usa a cor do nó ou um padrão de grupo
+    // Use node color or default
     const backgroundColor = node.color
       ? `${node.color}20`
       : "rgba(148, 163, 184, 0.1)";
@@ -481,31 +499,63 @@ export class RenderService {
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = (isSelected ? 2.5 : 1) / viewState.scale;
 
-    // Desenha o retângulo de fundo arredondado (lógica de 'drawGroup')
+    // Draw rounded background rectangle
     ctx.beginPath();
-    ctx.moveTo(x + cornerRadius, y);
-    ctx.lineTo(x + width - cornerRadius, y);
-    ctx.arcTo(x + width, y, x + width, y + cornerRadius, cornerRadius);
-    ctx.lineTo(x + width, y + height - cornerRadius);
-    ctx.arcTo(
-      x + width,
-      y + height,
-      x + width - cornerRadius,
-      y + height,
-      cornerRadius
-    );
-    ctx.lineTo(x + cornerRadius, y + height);
-    ctx.arcTo(x, y + height, x, y + height - cornerRadius, cornerRadius);
-    ctx.lineTo(x, y + cornerRadius);
-    ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius);
-    ctx.closePath();
+    ctx.roundRect(x, y, width, height, cornerRadius);
     ctx.fill();
     ctx.stroke();
 
-    // Desenha a linha separadora do cabeçalho
+    // If expanded, draw a content area to visually contain the internal nodes
+    if (isExpanded) {
+      const contentY = y + headerHeight;
+      const contentHeight = height - headerHeight;
+      
+      if (contentHeight > 0) {
+        ctx.fillStyle = `${backgroundColor}40`; // More transparent for content area
+        ctx.beginPath();
+        ctx.roundRect(x + 5, contentY + 5, width - 10, contentHeight - 10, cornerRadius - 2);
+        ctx.fill();
+      }
+    }
+
+    // Draw header separator line
     ctx.beginPath();
     ctx.moveTo(x, y + headerHeight);
     ctx.lineTo(x + width, y + headerHeight);
+    ctx.stroke();
+
+    // Draw accordion toggle button
+    const toggleSize = 16;
+    const toggleX = x + width - toggleSize - 10;
+    const toggleY = y + (headerHeight - toggleSize) / 2;
+    
+    // Toggle button background with hover effect
+    ctx.fillStyle = isExpanded ? "#22c55e" : "#4b5563";
+    ctx.beginPath();
+    ctx.roundRect(toggleX, toggleY, toggleSize, toggleSize, 3);
+    ctx.fill();
+    
+    // Toggle button border
+    ctx.strokeStyle = isExpanded ? "#16a34a" : "#374151";
+    ctx.lineWidth = 1 / viewState.scale;
+    ctx.stroke();
+    
+    // Toggle button icon
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2 / viewState.scale;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (isExpanded) {
+      // Minus icon (collapse)
+      ctx.moveTo(toggleX + 4, toggleY + toggleSize / 2);
+      ctx.lineTo(toggleX + toggleSize - 4, toggleY + toggleSize / 2);
+    } else {
+      // Plus icon (expand)
+      ctx.moveTo(toggleX + 4, toggleY + toggleSize / 2);
+      ctx.lineTo(toggleX + toggleSize - 4, toggleY + toggleSize / 2);
+      ctx.moveTo(toggleX + toggleSize / 2, toggleY + 4);
+      ctx.lineTo(toggleX + toggleSize / 2, toggleY + toggleSize - 4);
+    }
     ctx.stroke();
 
     const fontFamily = getComputedStyle(
@@ -514,15 +564,29 @@ export class RenderService {
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
 
-    // Renderiza o Título
+    // Render title
     ctx.fillStyle = titleColor;
     ctx.font = `bold 14px ${fontFamily}`;
     ctx.fillText(title, x + 15, y + headerHeight / 2 - 5);
 
-    // Renderiza o Subtítulo
+    // Render subtitle and content info
     ctx.fillStyle = subtitleColor;
     ctx.font = `11px ${fontFamily}`;
     ctx.fillText("Composite Node", x + 15, y + headerHeight / 2 + 9);
+    
+    // Add content info when collapsed
+    if (!isExpanded && node.subgraph) {
+      const nodeCount = node.subgraph.nodes.length;
+      const connectionCount = node.subgraph.connections.length;
+      
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = `10px ${fontFamily}`;
+      ctx.fillText(`${nodeCount} nodes, ${connectionCount} connections`, x + 15, y + headerHeight + 20);
+      
+      // Add helpful text
+      ctx.fillStyle = "#6b7280";
+      ctx.fillText("Click + to expand", x + 15, y + headerHeight + 35);
+    }
   }
 
   private drawPort(
@@ -686,6 +750,72 @@ export class RenderService {
         isSelected
       );
     });
+
+    // Also render connections inside expanded composite nodes
+    const nodes = this.nodeManager.getNodes();
+    nodes.forEach((node) => {
+      if (node.isComposite && node.isExpanded && node.subgraph) {
+        node.subgraph.connections.forEach((subConn) => {
+          // Find the source and target nodes in the subgraph
+          const sourceSubNode = node.subgraph!.nodes.find(n => n.id === subConn.sourceNodeId);
+          const targetSubNode = node.subgraph!.nodes.find(n => n.id === subConn.targetNodeId);
+          
+          if (sourceSubNode && targetSubNode) {
+            // Adjust positions relative to composite node with padding
+            const padding = 10;
+            const adjustedSourceNode = {
+              ...sourceSubNode,
+              position: {
+                x: node.position.x + sourceSubNode.position.x + padding,
+                y: node.position.y + sourceSubNode.position.y + GROUP_HEADER_HEIGHT + padding
+              }
+            };
+            const adjustedTargetNode = {
+              ...targetSubNode,
+              position: {
+                x: node.position.x + targetSubNode.position.x + padding,
+                y: node.position.y + targetSubNode.position.y + GROUP_HEADER_HEIGHT + padding
+              }
+            };
+
+            // Find the ports and calculate positions
+            const sourcePort = [...sourceSubNode.fixedOutputs, ...sourceSubNode.dynamicOutputs]
+              .find(p => p.id === subConn.sourcePortId);
+            const targetPort = [...targetSubNode.fixedInputs, ...targetSubNode.dynamicInputs]
+              .find(p => p.id === subConn.targetPortId);
+
+            if (sourcePort && targetPort) {
+              const sourcePos = this.interactionManager.getPortAbsolutePosition(
+                adjustedSourceNode, sourcePort, this.currentViewState!
+              );
+              const targetPos = this.interactionManager.getPortAbsolutePosition(
+                adjustedTargetNode, targetPort, this.currentViewState!
+              );
+
+              // Draw the connection
+              this.ctx!.beginPath();
+              const routingMode = this.currentViewState!.preferences.connectionRouting;
+              switch (routingMode) {
+                case ConnectionRoutingMode.STRAIGHT:
+                  this.drawStraightPath(this.ctx!, sourcePos, targetPos);
+                  break;
+                case ConnectionRoutingMode.ORTHOGONAL:
+                  this.drawOrthogonalPath(this.ctx!, sourcePos, targetPos);
+                  break;
+                case ConnectionRoutingMode.BEZIER:
+                default:
+                  this.drawBezierPath(this.ctx!, sourcePos, targetPos, this.currentViewState!);
+                  break;
+              }
+
+              this.ctx!.strokeStyle = subConn.style?.color || this.themeColors.connectionDefault;
+              this.ctx!.lineWidth = 2 / this.currentViewState!.scale;
+              this.ctx!.stroke();
+            }
+          }
+        });
+      }
+    });
   }
 
   private drawConnection(
@@ -709,6 +839,9 @@ export class RenderService {
       targetPort.isHidden
     )
       return;
+
+    // For now, render all connections normally
+    // Future: Could add logic to hide connections when nodes are inside collapsed composite nodes
 
     const p0 = this.interactionManager.getPortAbsolutePosition(
       sourceNode,
@@ -950,80 +1083,104 @@ export class RenderService {
     const nodes = this.nodeManager.getNodes();
 
     nodes.forEach((node) => {
-      const allInputPorts = [
-        ...node.fixedInputs,
-        ...node.dynamicInputs.filter((p) => !p.isHidden),
-      ];
-      const allOutputPorts = [
-        ...node.fixedOutputs,
-        ...node.dynamicOutputs.filter((p) => !p.isHidden),
-      ];
+      this.renderPortsForNode(node, this.ctx!, this.currentViewState!);
+      
+      // If this is an expanded composite node, also render ports for its internal nodes
+      if (node.isComposite && node.isExpanded && node.subgraph) {
+        node.subgraph.nodes.forEach((subNode) => {
+          // Adjust position relative to composite node with padding
+          const padding = 10;
+          const adjustedSubNode = {
+            ...subNode,
+            position: {
+              x: node.position.x + subNode.position.x + padding,
+              y: node.position.y + subNode.position.y + GROUP_HEADER_HEIGHT + padding
+            }
+          };
+          this.renderPortsForNode(adjustedSubNode, this.ctx!, this.currentViewState!);
+        });
+      }
+    });
+  }
 
-      allInputPorts.forEach((port) => {
-        const portAbsPos = this.interactionManager.getPortAbsolutePosition(
-          node,
-          port,
-          this.currentViewState!
-        );
-        this.drawPort(
-          this.ctx!,
-          port,
-          portAbsPos.x,
-          portAbsPos.y,
-          this.currentViewState!,
-          this.hoveredCompatiblePortId === port.id ||
-            this.hoveredPortIdIdle === port.id
-        );
-        this.ctx!.fillStyle = this.themeColors.nodePortText;
-        this.ctx!.font = `11px ${
-          getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily
-        }`;
-        this.ctx!.textAlign = "left";
-        this.ctx!.textBaseline = "middle";
-        const labelText = port.variableName || port.name;
-        if (labelText) {
-          this.ctx!.fillText(
-            labelText,
-            portAbsPos.x + NODE_PORT_SIZE + 4,
-            portAbsPos.y
-          );
-        }
-      });
+  private renderPortsForNode(
+    node: Node,
+    ctx: CanvasRenderingContext2D,
+    viewState: ViewState
+  ): void {
+    const allInputPorts = [
+      ...node.fixedInputs,
+      ...node.dynamicInputs.filter((p) => !p.isHidden),
+    ];
+    const allOutputPorts = [
+      ...node.fixedOutputs,
+      ...node.dynamicOutputs.filter((p) => !p.isHidden),
+    ];
 
-      allOutputPorts.forEach((port) => {
-        const portAbsPos = this.interactionManager.getPortAbsolutePosition(
-          node,
-          port,
-          this.currentViewState!
+    allInputPorts.forEach((port) => {
+      const portAbsPos = this.interactionManager.getPortAbsolutePosition(
+        node,
+        port,
+        viewState
+      );
+      this.drawPort(
+        ctx,
+        port,
+        portAbsPos.x,
+        portAbsPos.y,
+        viewState,
+        this.hoveredCompatiblePortId === port.id ||
+          this.hoveredPortIdIdle === port.id
+      );
+      ctx.fillStyle = this.themeColors.nodePortText;
+      ctx.font = `11px ${
+        getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily
+      }`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const labelText = port.variableName || port.name;
+      if (labelText) {
+        ctx.fillText(
+          labelText,
+          portAbsPos.x + NODE_PORT_SIZE + 4,
+          portAbsPos.y
         );
-        this.drawPort(
-          this.ctx!,
-          port,
-          portAbsPos.x,
-          portAbsPos.y,
-          this.currentViewState!,
-          this.hoveredCompatiblePortId === port.id ||
-            this.hoveredPortIdIdle === port.id
-        );
+      }
+    });
 
-        this.ctx!.fillStyle = this.themeColors.nodePortText;
-        this.ctx!.font = `11px ${
-          getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily
-        }`;
-        this.ctx!.textAlign = "right";
-        this.ctx!.textBaseline = "middle";
-        let labelText = port.name;
-        if (port.isDynamic && port.outputValue) {
-          labelText = `${port.name} (${port.outputValue.substring(0, 10)}...)`;
-        }
-        if (labelText) {
-          this.ctx!.fillText(
-            labelText,
-            portAbsPos.x - NODE_PORT_SIZE - 4,
-            portAbsPos.y
-          );
-        }
-      });
+    allOutputPorts.forEach((port) => {
+      const portAbsPos = this.interactionManager.getPortAbsolutePosition(
+        node,
+        port,
+        viewState
+      );
+      this.drawPort(
+        ctx,
+        port,
+        portAbsPos.x,
+        portAbsPos.y,
+        viewState,
+        this.hoveredCompatiblePortId === port.id ||
+          this.hoveredPortIdIdle === port.id
+      );
+
+      ctx.fillStyle = this.themeColors.nodePortText;
+      ctx.font = `11px ${
+        getComputedStyle(this.canvasEngine.getCanvasElement()).fontFamily
+      }`;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      let labelText = port.name;
+      if (port.isDynamic && port.outputValue) {
+        labelText = `${port.name} (${port.outputValue.substring(0, 10)}...)`;
+      }
+      if (labelText) {
+        ctx.fillText(
+          labelText,
+          portAbsPos.x - NODE_PORT_SIZE - 4,
+          portAbsPos.y
+        );
+      }
     });
   }
 

@@ -414,8 +414,21 @@ export class InteractionManager {
       let region = "body";
       if (itemHit.type === "node") {
         const node = this.nodeManager.getNode(itemHit.id);
-        if (node && canvasPoint.y < node.position.y + NODE_HEADER_HEIGHT)
+        if (node && canvasPoint.y < node.position.y + NODE_HEADER_HEIGHT) {
           region = "header";
+          
+          // Check if this is a composite node and clicking on accordion toggle button
+          if (node.isComposite) {
+            const toggleSize = 16;
+            const toggleX = node.position.x + node.width - toggleSize - 10;
+            const toggleY = node.position.y + (GROUP_HEADER_HEIGHT - toggleSize) / 2;
+            
+            if (canvasPoint.x >= toggleX && canvasPoint.x <= toggleX + toggleSize &&
+                canvasPoint.y >= toggleY && canvasPoint.y <= toggleY + toggleSize) {
+              region = "accordionToggle";
+            }
+          }
+        }
       } else if (itemHit.type === "group") {
         const group = this.nodeGroupManager.getGroup(itemHit.id);
         if (group && canvasPoint.y < group.position.y + GROUP_HEADER_HEIGHT)
@@ -708,6 +721,13 @@ export class InteractionManager {
       case "stickyNote":
       case "group":
         if (interactiveElement.item) {
+          // Handle accordion toggle for composite nodes
+          if (interactiveElement.type === "node" && interactiveElement.region === "accordionToggle") {
+            this.events.emit("compositeNodeAccordionToggled", interactiveElement.item.id);
+            this.canvasEngine.requestRender();
+            return;
+          }
+
           this.mode = "draggingItems";
           this.dragStartCanvasPoint = canvasPoint;
           if (originalEvent.metaKey || originalEvent.ctrlKey)
@@ -889,7 +909,34 @@ export class InteractionManager {
             // The group's own position is updated, and the nodes will be updated relative to it, but not here.
             // The actual child node movement happens based on the group's delta, not a fresh calculation.
             if (dragItem.type === "node") {
-              this.nodeManager.moveNode(dragItem.id, { x: newX, y: newY });
+              // Check if this is an internal node of a composite node
+              const extendedDragItem = dragItem as DraggableItem & { 
+                _isInternalNode?: boolean, 
+                _parentCompositeNodeId?: string,
+                _originalPosition?: Point 
+              };
+              
+              if (extendedDragItem._isInternalNode && extendedDragItem._parentCompositeNodeId && extendedDragItem._originalPosition) {
+                // This is an internal node, calculate relative position within the composite node
+                const compositeNode = this.nodeManager.getNode(extendedDragItem._parentCompositeNodeId);
+                if (compositeNode) {
+                  const padding = 10;
+                  const headerHeight = GROUP_HEADER_HEIGHT;
+                  
+                  // Calculate new relative position within the composite node
+                  const relativeX = newX - compositeNode.position.x - padding;
+                  const relativeY = newY - compositeNode.position.y - headerHeight - padding;
+                  
+                  this.nodeManager.moveInternalNode(
+                    extendedDragItem._parentCompositeNodeId,
+                    dragItem.id,
+                    { x: relativeX, y: relativeY }
+                  );
+                }
+              } else {
+                // Regular node movement
+                this.nodeManager.moveNode(dragItem.id, { x: newX, y: newY });
+              }
             } else if (dragItem.type === "stickyNote") {
               this.stickyNoteManager.updateNote(dragItem.id, {
                 position: { x: newX, y: newY },
@@ -1328,6 +1375,60 @@ export class InteractionManager {
 
   private getItemBodyAtPoint(canvasPoint: Point): DraggableItem | null {
     const nodes = this.nodeManager.getNodes();
+    
+    // First check internal nodes of expanded composite nodes (highest priority)
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const compositeNode = nodes[i];
+      if (compositeNode.isComposite && compositeNode.isExpanded && compositeNode.subgraph) {
+        const padding = 10;
+        const headerHeight = GROUP_HEADER_HEIGHT;
+        
+        // Check if point is within composite node content area
+        const contentAreaX = compositeNode.position.x + padding;
+        const contentAreaY = compositeNode.position.y + headerHeight + padding;
+        const contentAreaWidth = compositeNode.width - padding * 2;
+        const contentAreaHeight = compositeNode.height - headerHeight - padding * 2;
+        
+        if (this.isPointInRect(canvasPoint, 
+          { x: contentAreaX, y: contentAreaY }, 
+          { width: contentAreaWidth, height: contentAreaHeight })) {
+          
+          // Check each internal node within the composite node
+          for (let j = compositeNode.subgraph.nodes.length - 1; j >= 0; j--) {
+            const internalNode = compositeNode.subgraph.nodes[j];
+            const adjustedPosition = {
+              x: compositeNode.position.x + internalNode.position.x + padding,
+              y: compositeNode.position.y + internalNode.position.y + headerHeight + padding
+            };
+            
+            if (this.isPointInRect(canvasPoint, adjustedPosition, {
+              width: internalNode.width,
+              height: internalNode.height,
+            })) {
+              // Return a draggable item that represents the internal node
+              // but includes metadata to handle it specially
+              return {
+                id: internalNode.id,
+                type: "node",
+                position: adjustedPosition,
+                width: internalNode.width,
+                height: internalNode.height,
+                // Add metadata to identify this as an internal node
+                _isInternalNode: true,
+                _parentCompositeNodeId: compositeNode.id,
+                _originalPosition: internalNode.position
+              } as DraggableItem & { 
+                _isInternalNode: boolean, 
+                _parentCompositeNodeId: string,
+                _originalPosition: Point 
+              };
+            }
+          }
+        }
+      }
+    }
+    
+    // Then check regular nodes
     for (let i = nodes.length - 1; i >= 0; i--) {
       const node = nodes[i];
       if (
@@ -1338,6 +1439,7 @@ export class InteractionManager {
       )
         return this.nodeToDraggableItem(node);
     }
+    
     const stickyNotes = this.stickyNoteManager.getNotes();
     for (let i = stickyNotes.length - 1; i >= 0; i--) {
       const note = stickyNotes[i];
@@ -1349,6 +1451,7 @@ export class InteractionManager {
       )
         return this.stickyToDraggableItem(note);
     }
+    
     // Check groups last, so nodes/notes on top are prioritized
     const groups = this.nodeGroupManager.getGroups();
     for (let i = groups.length - 1; i >= 0; i--) {

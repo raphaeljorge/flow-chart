@@ -193,6 +193,12 @@ export class NodeEditorController {
         this.navigateToSubgraph(node);
       }
     });
+
+    // Handle accordion toggle events for composite nodes
+    this.interactionManager.on("compositeNodeAccordionToggled", (nodeId: string) => {
+      this.nodeManager.toggleCompositeNodeExpansion(nodeId);
+      this.canvasEngine.requestRender();
+    });
   }
 
   private navigateToSubgraph(node: Node): void {
@@ -1367,10 +1373,35 @@ export class NodeEditorController {
         groupId: undefined, // Clear the groupId since it's no longer part of the original group
         data: node.data ? JSON.parse(JSON.stringify(node.data)) : {},
         config: node.config ? JSON.parse(JSON.stringify(node.config)) : undefined,
-        fixedInputs: node.fixedInputs.map(p => ({ ...p, connections: [...p.connections] })),
-        fixedOutputs: node.fixedOutputs.map(p => ({ ...p, connections: [...p.connections] })),
-        dynamicInputs: node.dynamicInputs.map(p => ({ ...p, connections: [...p.connections] })),
-        dynamicOutputs: node.dynamicOutputs.map(p => ({ ...p, connections: [...p.connections] })),
+        // Keep ports but clear external connections (they'll be handled by composite node ports)
+        fixedInputs: node.fixedInputs.map(p => ({ 
+          ...p, 
+          connections: p.connections.filter(connId => {
+            const conn = allConnections.find(c => c.id === connId);
+            return conn && childNodeIds.has(conn.sourceNodeId) && childNodeIds.has(conn.targetNodeId);
+          })
+        })),
+        fixedOutputs: node.fixedOutputs.map(p => ({ 
+          ...p, 
+          connections: p.connections.filter(connId => {
+            const conn = allConnections.find(c => c.id === connId);
+            return conn && childNodeIds.has(conn.sourceNodeId) && childNodeIds.has(conn.targetNodeId);
+          })
+        })),
+        dynamicInputs: node.dynamicInputs.map(p => ({ 
+          ...p, 
+          connections: p.connections.filter(connId => {
+            const conn = allConnections.find(c => c.id === connId);
+            return conn && childNodeIds.has(conn.sourceNodeId) && childNodeIds.has(conn.targetNodeId);
+          })
+        })),
+        dynamicOutputs: node.dynamicOutputs.map(p => ({ 
+          ...p, 
+          connections: p.connections.filter(connId => {
+            const conn = allConnections.find(c => c.id === connId);
+            return conn && childNodeIds.has(conn.sourceNodeId) && childNodeIds.has(conn.targetNodeId);
+          })
+        })),
         subgraph: node.subgraph ? JSON.parse(JSON.stringify(node.subgraph)) : undefined,
       });
   
@@ -1417,8 +1448,8 @@ export class NodeEditorController {
         type: 'composite-node',
         description: 'A composite node containing a subgraph.',
         position: { ...group.position },
-        width: group.width,
-        height: group.height,
+        width: 180, // Start collapsed
+        height: 120, // Start collapsed
         color: group.style.borderColor,
         icon: 'ph-stack',
         isComposite: true,
@@ -1427,7 +1458,13 @@ export class NodeEditorController {
         fixedOutputs: [],
         dynamicInputs: [],
         dynamicOutputs: [],
-        data: {}
+        data: {},
+        // Accordion properties
+        isExpanded: false,
+        collapsedWidth: 180,
+        collapsedHeight: 120,
+        expandedWidth: group.width,
+        expandedHeight: group.height,
       };
   
       const portMap = new Map<string, string>();
