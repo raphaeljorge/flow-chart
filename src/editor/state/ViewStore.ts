@@ -67,7 +67,12 @@ export class ViewStore {
   }
 
   public getCurrentGraphId(): string {
-      return this.state.navigationPath[this.state.navigationPath.length - 1].graphId;
+      if (this.state.navigationPath.length === 0) {
+          // Fallback to root if navigationPath is empty
+          return 'root';
+      }
+      const lastEntry = this.state.navigationPath[this.state.navigationPath.length - 1];
+      return lastEntry?.graphId || 'root';
   }
 
   public getNavigationPath(): BreadcrumbEntry[] {

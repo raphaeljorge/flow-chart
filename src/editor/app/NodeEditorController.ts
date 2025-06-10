@@ -1173,6 +1173,14 @@ export class NodeEditorController {
     return LOCAL_STORAGE_GRAPH_KEY;
   }
 
+  public getGraphState(): GraphState {
+    return this.getCurrentGraphState();
+  }
+
+  public setGraphState(graphState: GraphState, pushToHistory: boolean = true): void {
+    this.loadGraphState(graphState, pushToHistory);
+  }
+
   public async clearGraph(): Promise<void> {
     this.loadGraphState(
       {

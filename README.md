@@ -217,7 +217,7 @@ node-based-software-builder/
 
 ### **UI/UX Enhancements**
 
-- ❌ **Breadcrumb navigation** for nested flows
+- ✅ **Breadcrumb navigation** for nested flows
 
 - ❌ **Tab system** for multiple open flows
 
